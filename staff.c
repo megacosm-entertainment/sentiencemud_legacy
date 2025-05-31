@@ -154,7 +154,7 @@ void do_sadd(CHAR_DATA *ch, char *argument)
     sprintf(buf, "\n\rYou have been set to wizinvis {W%s{x.\n\r", flag_string(staff_ranks, player->invis_level));
     send_to_char(buf,player);
 
-    act("Created new immortal $T.", ch, NULL, NULL, NULL, NULL, NULL, immortal->name, TO_CHAR);
+    act("Created new immortal $T.", ch, NULL, NULL, NULL, NULL, NULL, immortal->name, TO_CHAR, NULL, NULL);
     save_immstaff();
     save_char_obj(ch);
 }
@@ -423,7 +423,7 @@ void do_sdelete(CHAR_DATA *ch, char *argument)
         return;
     }
 
-    act("$N's immortal priveleges have been terminated.", ch, player, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+    act("$N's immortal priveleges have been terminated.", ch, player, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
     /* Remove it from the global list */
     last = NULL;
     for (tmp = immortal_list; tmp != NULL; tmp = tmp->next) {
@@ -476,7 +476,7 @@ void do_ssupervisor(CHAR_DATA *ch, char *argument)
     }
 
     immortal->leader = str_dup(leader->name);
-    act("Set $t's supervisor to $T.", ch, NULL, NULL, NULL, NULL, immortal->name, leader->name,  TO_CHAR);
+    act("Set $t's supervisor to $T.", ch, NULL, NULL, NULL, NULL, immortal->name, leader->name,  TO_CHAR, NULL, NULL);
 	}
 
 

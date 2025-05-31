@@ -426,6 +426,8 @@ struct script_type
 #define SETTING_TYPE_BOOL 0
 #define SETTING_TYPE_INT 1
 #define SETTING_TYPE_STRING 2
+#define SETTING_TYPE_EXTSTR 3
+#define SETTING_TYPE_FLOAT 4
 
 /* Setting category constants */
 #define SETTING_CAT_EMAIL 0
@@ -441,6 +443,10 @@ struct script_type
 
 #define GAMEEDIT(fun) bool fun(CHAR_DATA *ch, char *argument)
 #define SETTING_CAT_MAX 8 /* Number of setting categories */
+
+#define AES_KEY_SIZE 32  // 256 bits
+#define AES_IV_SIZE 16   // 128 bits
+#define CRYPTO_SALT_SIZE 16
 
 /* Structures */
 typedef struct affect_data AFFECT_DATA;
@@ -1029,6 +1035,37 @@ struct corpse_blend_type
     bool dual;  /* Whether type1/type2 are interchangeable; if so, both ways are checked */
 };
 
+typedef enum
+{
+    BODY_TYPE_NEUTRAL,
+    BODY_TYPE_MALE,
+    BODY_TYPE_FEMALE,
+    BODY_TYPE_OTHER, // For custom/non-binary, pronouns will be essential
+    BODY_TYPE_RANDOM,
+    BODY_TYPE_MAX
+} body_type_t;
+
+typedef enum {
+    VERB_FORM_DEFAULT,  // Default behavior (e.g., based on pronouns like "they")
+    VERB_FORM_SINGULAR, // Force singular verbs (e.g., "he walks", "ze walks")
+    VERB_FORM_PLURAL    // Force plural verbs (e.g., "they walk", or if a singular entity wants plural verbs)
+} verb_form_preference_t;
+
+
+
+struct body_type_info_type
+{
+    const char *name;           // e.g., "neutral", "male", "female", "other"
+    const char *default_he_she;
+    const char *default_him_her;
+    const char *default_his_her;      // Possessive adjective
+    const char *default_his_hers;     // Possessive pronoun
+    const char *default_himself_herself;
+    verb_form_preference_t verb_preference; // Verb (and other) preference for this body type
+};
+
+const struct body_type_info_type body_type_info[BODY_TYPE_MAX];
+
 typedef struct random_string_pattern RANDOM_PATTERN;
 typedef struct random_string_class RANDOM_CLASS;
 typedef struct random_string_entry RANDOM_STRING_ENTRY;
@@ -1386,10 +1423,6 @@ struct olc_point_area_data
 #define RECKONING_INTENSITY_MAX 200
 #define RECKONING_INTENSITY(in) URANGE(RECKONING_INTENSITY_MIN, (in), RECKONING_INTENSITY_MAX)
 
-#ifdef IMC
-#include "imc.h"
-#endif
-
 #define WILDERNESS_CHAR_EXIT_SIGHT 1
 #define WILDERNESS_OBJ_EXIT_SIGHT 2
 
@@ -1664,6 +1697,9 @@ struct game_settings_data
     bool note_boot_errors;
     int character_delete_delay_days; // How long until a character is deleted after being marked for deletion?
     int org_disable_pk_pneuma_cost; // How much does it cost to disable PK in an org?
+    int base_death_minutes; // How many minutes does a player have to wait for auto-resurrection after death?
+    int early_rez_base_dp_cost; // How much does it cost to resurrect a player early?
+    int max_socials; // How many socials can a player have?
 
     /* MSSP Settings */
     int mssp_players;          // Automatically updated by the game.
@@ -2081,6 +2117,32 @@ struct church_treasure_room
 #define CON_MAX 76
 
 #define MFA_RECOVERY_CODES 5
+
+typedef struct social_data SOCIAL_DATA;
+
+extern LIST *social_list;
+
+struct social_data {
+    char *name;
+    bool enabled;
+    char *char_no_arg;
+    char *others_no_arg;
+    char *char_found;
+    char *others_found;
+    char *vict_found;
+    char *char_not_found;
+    char *char_auto;
+    char *others_auto;
+    // Add other fields if necessary, e.g., minimum position
+};
+
+// Function prototypes
+void load_socials(void);
+void save_socials(void);
+SOCIAL_DATA *get_social(const char *name); // Case-insensitive lookup
+SOCIAL_DATA *new_social_data(void);
+void free_social_data(SOCIAL_DATA *social);
+void insert_social_sorted(SOCIAL_DATA *social);
 
 /* Places */
 enum
@@ -4626,6 +4688,14 @@ struct mob_index_data
     MOB_REPUTATION_DATA *reputations;
 
     bool boss;
+
+    body_type_t         body_type;
+    char *              pronoun_he_she;
+    char *              pronoun_him_her;
+    char *              pronoun_his_her;        // Possessive adjective
+    char *              pronoun_his_hers;       // Possessive pronoun
+    char *              pronoun_himself_herself;
+    verb_form_preference_t verb_preference;
 };
 
 struct mail_data
@@ -5399,6 +5469,14 @@ struct char_data
     /*int			group; Syn - unused and unnecessary */
     int sex;
 
+    body_type_t    body_type;	/* Body type of the character */
+    char *      pronoun_he_she;         // e.g., "they", "ze", "he"
+    char *      pronoun_him_her;        // e.g., "them", "zir", "him"
+    char *      pronoun_his_her;        // e.g., "their", "zis", "his" (possessive adjective)
+    char *      pronoun_his_hers;       // e.g., "theirs", "zirs", "his" (possessive pronoun)
+    char *      pronoun_himself_herself; // e.g., "themself", "zirself", "himself"
+    verb_form_preference_t verb_preference;
+
     RACE_DATA *race;
     int orace;
     // int			level;
@@ -5910,7 +5988,31 @@ struct account_character_data
     long id[2];         /* Character ID */
     bool deleted;       /* Is the character deleted? */
     time_t delete_time; /* When the character was deleted */
-    //    long id2;                   /* Character ID part 2 */
+
+    /* Authentication Details */
+    // Password handling
+    char *pwd;            // Password (only for unlinked characters)
+    int pwd_vers;         // Password version
+    char *old_pwd;       // Old password (for password history)
+    char *reset_code;     // Password reset code
+    time_t reset_time;    // Reset code expiration
+    int reset_state;      // Current state of reset process
+    
+    // Multi-Factor Authentication (MFA)
+    char *mfa_key;        // MFA key (if needed at character level)
+    bool mfa_enabled;     // MFA enabled flag
+    char *mfa_pending_key; // For unconfirmed MFA setup 
+    char *recovery_codes[MFA_RECOVERY_CODES]; // Array of 5 recovery codes
+    bool recovery_used[MFA_RECOVERY_CODES];   // Used flags for recovery codes
+    
+    // Email handling
+    char *email;          // Email address for the character
+    bool email_verified;  // Is the character's email verified?
+    char *pending_email;  // Email address pending verification
+    char *email_verification_code; // Code used to verify email
+    time_t email_verification_time; // Time of email verification
+    time_t email_verification_last_sent; // Time of last email verification code sent
+
 };
 
 typedef struct account_character_data ACCOUNT_CHARACTER;
@@ -5943,7 +6045,7 @@ struct pc_data
     time_t email_verification_last_sent;
     char *flag;
     char *reset_code;
-    bool reset_state;
+    int reset_state;
     time_t reset_time;
     long channel_flags;
     long creation_date;
@@ -5967,6 +6069,12 @@ struct pc_data
     char *last_region;
 
     int staff_rank;
+    char *      pronoun_he_she;         // e.g., "they", "ze", "he"
+    char *      pronoun_him_her;        // e.g., "them", "zir", "him"
+    char *      pronoun_his_her;        // e.g., "their", "zis", "his" (possessive adjective)
+    char *      pronoun_his_hers;       // e.g., "theirs", "zirs", "his" (possessive pronoun)
+    char *      pronoun_himself_herself; // e.g., "themself", "zirself", "himself"
+    verb_form_preference_t verb_preference;
 
     LLIST *classes;
 
@@ -6031,10 +6139,6 @@ struct pc_data
 
     int pwd_vers; /* Password version, added for sha256 */
 
-#ifdef IMC
-    IMC_CHARDATA *imcchardata;
-#endif
-
     LLIST *unlocked_areas;
 
     LLIST *ships;
@@ -6052,6 +6156,15 @@ struct pc_data
     char *recovery_codes[MFA_RECOVERY_CODES]; // Array of 5 recovery codes
     bool recovery_used[MFA_RECOVERY_CODES];   // Used flags
 };
+
+
+const char *get_he_she(CHAR_DATA *ch);
+const char *get_him_her(CHAR_DATA *ch);
+const char *get_his_her(CHAR_DATA *ch);
+const char *get_his_hers(CHAR_DATA *ch);
+const char *get_himself_herself(CHAR_DATA *ch);
+const char *get_body_type_name(CHAR_DATA *ch);
+const char *get_verb_form(CHAR_DATA *ch, const char *singular, const char *plural);
 
 /*
  * Liquids.
@@ -10489,8 +10602,8 @@ extern int16_t grn_unique;
 #define IN_CHAT(ch) (!str_cmp(ch->in_room->area->name, "Elysium"))
 #define IN_EDEN(ch) (ch->in_room->area == eden_area)
 /* NIB : 20070122 : Added the NULL parameter at the end */
-#define act(format, ch, v1, v2, o1, o2, a1, a2, type) \
-    act_new((format), (ch), (v1), (v2), (o1), (o2), (a1), (a2), (type), POS_RESTING, NULL)
+#define act(format,ch,v1,v2,o1,o2,a1,a2,type,ch_verb, vch_verb)\
+	act_new((format),(ch),(v1),(v2),(ch_verb),(vch_verb),(o1),(o2),(a1),(a2),(type),POS_RESTING,NULL)
 
 #define damage(a, b, c, d, e, f, g) damage_new((a), (b), NULL, (c), (d), (e), (f), (g))
 
@@ -10767,6 +10880,11 @@ extern IMMORTAL_DATA *unassigned_immortal_list;
 #define INSTANCES_FILE WORLD_DIR "instances.dat"
 #define SHIPS_FILE WORLD_DIR "ships.dat"
 #define CHANGESET_FILE SYSTEM_DIR "changesets.dat"
+#define SOCIALS_FILE  SYSTEM_DIR "socials.dat"
+#define OLD_SOCIALS_FILE AREA_DIR "social.are"
+#define MFA_ENC_KEY  SYSTEM_DIR "mfa.key"
+#define RESERVED_FILE     SYSTEM_DIR "reserved.dat"
+#define PLAYER_LIST_FILE SYSTEM_DIR "discord_who.txt"
 /* POST msg queue */
 #define MSGQUEUE 1111
 
@@ -10968,7 +11086,7 @@ void close_socket(DESCRIPTOR_DATA *dclose);
 void write_to_buffer(DESCRIPTOR_DATA *d, const char *txt, int length);
 void send_to_char args((const char *txt, CHAR_DATA *ch));
 void page_to_char args((const char *txt, CHAR_DATA *ch));
-void act_new(char *format, CHAR_DATA *ch, CHAR_DATA *vch, CHAR_DATA *vch2, OBJ_DATA *obj, OBJ_DATA *obj2, void *arg1, void *arg2, int type, int min_pos, CHAR_TEST char_func);
+void act_new ( char *format, CHAR_DATA *ch, CHAR_DATA *vch, CHAR_DATA *vch2, const char *ch_verb, const char *vch_verb, OBJ_DATA *obj, OBJ_DATA *obj2, void *arg1, void *arg2, int type, int min_pos, CHAR_TEST char_func);
 char *stptok args((const char *s, char *tok, size_t toklen, char *brk));
 int colour args((char type, CHAR_DATA *ch, char *string));
 void colourconv args((char *buffer, const char *txt, CHAR_DATA *ch));
@@ -11586,6 +11704,31 @@ bool validate_account_recipient(const char *account_name);
 int colour_trunc_len(const char *str, int limit);
 char *normalize_filename(const char *name);
 bool is_duplicate_object(OBJ_DATA *obj);
+bool is_valid_colour_code(const char *code);
+void crypto_init(void);
+char* encrypt_string(const char *plaintext);
+char* decrypt_string(const char *encrypted);
+bool is_encrypted_key(const char *key);
+static const unsigned char base64_table[65] =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+unsigned char *base64_decode(const char *src, size_t len, size_t *out_len);
+unsigned char *base64_encode(const unsigned char *src, size_t len, size_t *out_len);
+char *get_game_setting_value(char *setting_name, bool *sensitive);
+AREA_DATA *get_reserved_area_index(const char *name);
+TOKEN_INDEX_DATA *get_reserved_token_index(const char *name);
+SCRIPT_DATA *get_reserved_rprog_index(const char *name);
+SCRIPT_DATA *get_reserved_oprog_index(const char *name);
+SCRIPT_DATA *get_reserved_mprog_index(const char *name);
+SCRIPT_DATA *get_reserved_tprog_index(const char *name);
+SCRIPT_DATA *get_reserved_aprog_index(const char *name);
+const struct game_setting_type *get_game_setting(const char *name);
+OBJ_INDEX_DATA *get_reserved_obj_index(const char *name);
+ROOM_INDEX_DATA *get_reserved_room_index(const char *name);
+MOB_INDEX_DATA *get_reserved_mob_index(const char *name);
+AREA_DATA *get_area_index(long uid);
+void display_pronoun_examples(CHAR_DATA *ch_viewer, const char *subj, const char *obj, const char *poss_adj, const char *poss_pron, const char *refl, verb_form_preference_t vpref);
+void reset_pronouns_to_body_type(CHAR_DATA *ch, body_type_t new_body_type);
+int get_colour_code_length_at_start(const char *p);
 
 /* help.c */
 HELP_DATA *find_helpfile(char *keyword, HELP_CATEGORY *hcat);
@@ -11609,7 +11752,7 @@ HELP_DATA *read_help_new(FILE *fp);
 /* interp.c */
 bool check_social(CHAR_DATA *ch, char *command, char *argument);
 void interpret args((CHAR_DATA * ch, char *argument));
-bool is_number args((char *arg));
+bool is_number args((const char *arg));
 bool is_percent args((char *arg));
 int number_argument args((char *argument, char *arg));
 int mult_argument args((char *argument, char *arg));
@@ -11711,9 +11854,8 @@ void send_qr_email_for_account(ACCOUNT_DATA *acct, const char *email, const char
 void send_recovery_codes_email_for_account(ACCOUNT_DATA *acct, const char *email);
 char *generate_totp_key(char *buffer, size_t length);
 void display_qr_code(DESCRIPTOR_DATA *d, const char *url);
-void display_recovery_codes(DESCRIPTOR_DATA *d, CHAR_DATA *ch);
+void display_recovery_codes(DESCRIPTOR_DATA *d, ACCOUNT_CHARACTER *acct_char);
 void generate_recovery_codes(char **codes, bool *used, int count);
-void display_recovery_codes(DESCRIPTOR_DATA *d, CHAR_DATA *ch);
 bool check_recovery_code(CHAR_DATA *ch, const char *code);
 bool check_account_recovery_code(ACCOUNT_DATA *acct, const char *code);
 void display_account_recovery_codes(DESCRIPTOR_DATA *d, ACCOUNT_DATA *acct);
@@ -11735,6 +11877,15 @@ void login_character_delete(DESCRIPTOR_DATA *d, char argument);
 bool delete_character(CHAR_DATA *ch);
 bool should_purge_deleted_character(const ACCOUNT_CHARACTER *ch_entry);
 void *iterator_peek_nextdata(ITERATOR *it);
+bool get_character_auth_data(CHAR_DATA *ch, ACCOUNT_DATA *acct, ACCOUNT_CHARACTER **acct_char);
+void display_account_mfa_key(DESCRIPTOR_DATA *d, ACCOUNT_DATA *acct);
+void display_acct_char_mfa_key(DESCRIPTOR_DATA *d, ACCOUNT_CHARACTER *acct_char);
+void display_mfa_key(DESCRIPTOR_DATA *d, const char *encrypted_key);
+bool validate_password_uniqueness(ACCOUNT_DATA *acct, const char *plaintext_password, 
+                                bool is_for_character, const char *character_name, bool is_staff);
+bool password_matches_account(ACCOUNT_DATA *acct, const char *plaintext_password);
+bool password_matches_staff_character(ACCOUNT_DATA *acct, const char *plaintext_password, const char *exclude_name);
+
 
 /* scripts.c */
 int program_flow args((long vnum, char *source, CHAR_DATA *mob,

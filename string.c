@@ -150,6 +150,12 @@ void string_postprocess(CHAR_DATA *ch, bool execute)
 		string_end_chlog(ch);
 	}
 
+	if (ch->desc->editor == ED_GAMESETTING) {
+		ch->desc->editor = ED_NONE;
+
+		game_settings_string_edit(ch);
+	}
+
 	if( ch->desc->input && ch->desc->inputString != NULL)
 	{
 		int ret;
@@ -206,7 +212,7 @@ void string_postprocess(CHAR_DATA *ch, bool execute)
 	// Done writing the description in a book via the "write" command
 	if (IS_VALID(ch->desc->writing_book))
 	{
-		act("$n finishes writing in $p.", ch, NULL, NULL, ch->desc->writing_book, NULL, NULL, NULL, TO_ROOM);
+		act("$n finishes writing in $p.", ch, NULL, NULL, ch->desc->writing_book, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
 		p_percent_trigger(NULL, ch->desc->writing_book, NULL, NULL, ch, NULL, NULL, NULL, NULL, TRIG_BOOK_WRITE_TEXT, NULL, 0,0,0,0,0);
 		ch->desc->writing_book = NULL;

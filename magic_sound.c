@@ -22,8 +22,8 @@ SPELL_FUNC(spell_shriek)
 	CHAR_DATA *victim = (CHAR_DATA *) vo;
 	int dam;
 
-	act("$n fills your ears with high-pitched shriek!",ch,victim, NULL, NULL, NULL, NULL, NULL, TO_VICT);
-	act("You inflict $N with an ear-piercing shriek!",ch,victim, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+	act("$n fills your ears with high-pitched shriek!",ch,victim, NULL, NULL, NULL, NULL, NULL, TO_VICT, NULL, NULL);
+	act("You inflict $N with an ear-piercing shriek!",ch,victim, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 
 	dam = level * 16;
 
@@ -32,7 +32,7 @@ SPELL_FUNC(spell_shriek)
 	if (saves_spell(level,victim,DAM_SOUND)) {
 		damage(ch,victim,dam/4,skill,TYPE_UNDEFINED,DAM_SOUND,true);
 	} else {
-		act("$N screams in pain, covering $S ears.",ch,victim, NULL, NULL, NULL, NULL, NULL, TO_NOTVICT);
+		act("$N screams in pain, covering $S ears.",ch,victim, NULL, NULL, NULL, NULL, NULL, TO_NOTVICT, NULL, NULL);
 		damage(ch,victim,dam,skill,TYPE_UNDEFINED,DAM_SOUND,true);
 	}
 	return true;
@@ -73,7 +73,7 @@ SPELL_FUNC(prespell_silence)
 		if (victim == ch)
 			send_to_char("You are already silenced.\n\r",ch);
 		else
-			act("$N is already silenced.",ch,victim, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+			act("$N is already silenced.",ch,victim, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		return false;
 	}
 
@@ -86,7 +86,7 @@ static bool __silence_function(SKILL_DATA *skill, CHAR_DATA *ch, CHAR_DATA *vict
 		if (victim == ch)
 			send_to_char("You are already silenced.\n\r",ch);
 		else
-			act("$N is already silenced.",ch,victim, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+			act("$N is already silenced.",ch,victim, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		return false;
 	}
 
@@ -112,8 +112,8 @@ static bool __silence_function(SKILL_DATA *skill, CHAR_DATA *ch, CHAR_DATA *vict
 
 	send_to_char(message, victim);
 
-	act("You have been silenced!",victim, NULL, NULL, NULL, NULL,NULL,NULL,TO_CHAR);
-	act("$n has been silenced!",victim,NULL, NULL, NULL, NULL, NULL,NULL,TO_ROOM);
+	act("You have been silenced!",victim, NULL, NULL, NULL, NULL,NULL,NULL,TO_CHAR, NULL, NULL);
+	act("$n has been silenced!",victim,NULL, NULL, NULL, NULL, NULL,NULL,TO_ROOM, NULL, NULL);
 	return true;
 }
 

@@ -1003,18 +1003,18 @@ FURNITURE_COMPARTMENT *furniture_find_compartment(CHAR_DATA *ch, OBJ_DATA *obj, 
 		compartment = furniture_get_compartment(obj, &count, arg2);
 
 		if (!IS_VALID(compartment))
-			act("You do not see that on $p.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+			act("You do not see that on $p.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 	}
 	else if (list_size(FURNITURE(obj)->compartments) < 1)
 	{
-		act("There is no where to $t on $p.", ch, NULL, NULL, obj, NULL, verb, NULL, TO_CHAR);
+		act("There is no where to $t on $p.", ch, NULL, NULL, obj, NULL, verb, NULL, TO_CHAR, NULL, NULL);
 	}
 	else if (FURNITURE(obj)->main_compartment < 1 || list_size(FURNITURE(obj)->compartments) > 1)
 	{
 		char buf[MSL];
 		int cnt = 0;
 
-		act("Please specify where to $t on $p:", ch, NULL, NULL, obj, NULL, verb, NULL, TO_CHAR);
+		act("Please specify where to $t on $p:", ch, NULL, NULL, obj, NULL, verb, NULL, TO_CHAR, NULL, NULL);
 		ITERATOR it;
 		iterator_start(&it, FURNITURE(obj)->compartments);
 		while((compartment = (FURNITURE_COMPARTMENT *)iterator_nextdata(&it)))

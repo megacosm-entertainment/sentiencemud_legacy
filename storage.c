@@ -143,7 +143,7 @@ void storage_character_cmd(CHAR_DATA *ch, char *argument)
         rent_time->tm_mday += game_settings.locker_rent_time;
         player->locker_rent = (time_t)mktime(rent_time);
 
-        act("Locker rent for $N has been forgiven.", ch, player, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+        act("Locker rent for $N has been forgiven.", ch, player, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
         send_to_char("{WYour character storage rent has been forgiven.{x\n\r", player);
         return;
     }
@@ -296,7 +296,7 @@ void storage_character_cmd(CHAR_DATA *ch, char *argument)
         send_to_char(buf, ch);
         show_list_to_char(ch->locker, ch, true, true);
 
-        act("$n looks over the contents of $s storage container.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+        act("$n looks over the contents of $s storage container.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
         return;
     }
 
@@ -359,8 +359,8 @@ void storage_character_cmd(CHAR_DATA *ch, char *argument)
             return;
         }
 
-        act("You place $p in your storage.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
-        act("$n places $p in $s storage.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM);
+        act("You place $p in your storage.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+        act("$n places $p in $s storage.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
         obj_from_char(obj);
         obj_to_locker(obj, ch);
@@ -374,8 +374,8 @@ void storage_character_cmd(CHAR_DATA *ch, char *argument)
             return;
         }
 
-        act("You get $p from your storage.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
-        act("$n gets $p from $s storage.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM);
+        act("You get $p from your storage.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+        act("$n gets $p from $s storage.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
         obj_from_locker(obj);
         obj_to_char(obj, ch);
@@ -649,7 +649,7 @@ if (!account) {
         send_to_char(buf, ch);
         show_list_to_char(account->vault_items, ch, true, true);
 
-        act("$n looks through $s account vault.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+        act("$n looks through $s account vault.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
         
         if (loaded && account) free_account(account);
         return;
@@ -733,8 +733,8 @@ if (!account) {
             return;
         }
 
-        act("You place $p in your account vault.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
-        act("$n places $p in $s account vault.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM);
+        act("You place $p in your account vault.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+        act("$n places $p in $s account vault.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
         obj_from_char(obj);
         obj_to_vault(obj, account);
@@ -754,8 +754,8 @@ if (!account) {
             return;
         }
 
-        act("You get $p from your account vault.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
-        act("$n gets $p from $s account vault.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM);
+        act("You get $p from your account vault.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+        act("$n gets $p from $s account vault.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
         obj_from_vault(obj, account);
         obj_to_char(obj, ch);
@@ -1014,7 +1014,7 @@ void storage_church_cmd(CHAR_DATA *ch, char *argument)
         send_to_char(buf, ch);
         show_list_to_char(church->coffer, ch, true, true);
 
-        act("$n looks through the church coffer.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+        act("$n looks through the church coffer.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
         return;
     }
 
@@ -1075,8 +1075,8 @@ void storage_church_cmd(CHAR_DATA *ch, char *argument)
             return;
         }
 
-        act("You place $p in the church coffer.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
-        act("$n places $p in the church coffer.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM);
+        act("You place $p in the church coffer.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+        act("$n places $p in the church coffer.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
         obj_from_char(obj);
         obj_to_coffer(obj, church);
@@ -1102,8 +1102,8 @@ void storage_church_cmd(CHAR_DATA *ch, char *argument)
             return;
         }
 
-        act("You get $p from the church coffer.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
-        act("$n gets $p from the church coffer.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM);
+        act("You get $p from the church coffer.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+        act("$n gets $p from the church coffer.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
         obj_from_coffer(obj, church);
         obj_to_char(obj, ch);

@@ -83,7 +83,7 @@ void do_deposit(CHAR_DATA *ch, char *argument)
 
 	    sprintf(buf, "$N hands you %d silver coins and %d gold coins.",
 		    silver, gold);
-	    act(buf, ch, mob, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+	    act(buf, ch, mob, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 
 	    ch->missionpoints += qp;
 	    ch->practice += prac;
@@ -134,9 +134,9 @@ void do_deposit(CHAR_DATA *ch, char *argument)
     {
 	sprintf(buf, "You have deposited {Y%d{x bottled souls with %s!", i,
 		mob->short_descr);
-	act(buf, ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+	act(buf, ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 	sprintf(buf, "$n deposits %d bottled souls.", i);
-	act(buf, ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+	act(buf, ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
 	if (boost_table[BOOST_PNEUMA].boost != 100)
 	{
@@ -169,7 +169,7 @@ void do_strike(CHAR_DATA *ch, char *argument)
     {
 		if (obj->pIndexData != obj_index_glass_hammer)
 		{
-			act("You can't accomplish anything with $p.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+			act("You can't accomplish anything with $p.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 			return;
 		}
     }
@@ -201,22 +201,22 @@ void do_strike(CHAR_DATA *ch, char *argument)
 
     if (obj_struck->fragility == OBJ_FRAGILE_SOLID)
     {
-	act("That would be pointless as $p does not decay.", ch, NULL, NULL, obj_struck, NULL, NULL, NULL, TO_CHAR);
+	act("That would be pointless as $p does not decay.", ch, NULL, NULL, obj_struck, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 	return;
     }
 
     sprintf(buf, "{YYou strike $p{Y with %s and it flashes with a bright light!{x",
     	obj->short_descr);
-    act(buf, ch, NULL, NULL, obj_struck, NULL, NULL, NULL, TO_CHAR);
+    act(buf, ch, NULL, NULL, obj_struck, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
     sprintf(buf, "{Y$n strikes $p{Y with %s and it flashes with a bright light!{x",
         obj->short_descr);
-    act(buf, ch, NULL, NULL, obj_struck, NULL, NULL, NULL, TO_ROOM);
+    act(buf, ch, NULL, NULL, obj_struck, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
     obj_struck->condition = 100;
     obj_struck->times_fixed = 0;
 
-    act("$p shatters into a million pieces!", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
-    act("$n's $p shatters into a million pieces!", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM);
+    act("$p shatters into a million pieces!", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+    act("$n's $p shatters into a million pieces!", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
     extract_obj(obj);
 }
 
@@ -707,19 +707,19 @@ void do_keep(CHAR_DATA *ch, char *argument)
 
     if ((obj = get_obj_list(ch, arg, ch->carrying)) == NULL)
     {
-	act("You aren't carrying any $t.", ch, NULL, NULL, NULL, NULL, arg, NULL, TO_CHAR);
+	act("You aren't carrying any $t.", ch, NULL, NULL, NULL, NULL, arg, NULL, TO_CHAR, NULL, NULL);
 	return;
     }
 
     if (IS_SET(obj->extra[1], ITEM_KEPT))
     {
 	REMOVE_BIT(obj->extra[1], ITEM_KEPT);
-	act("You will no longer keep $p.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+	act("You will no longer keep $p.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
     }
     else
     {
 	SET_BIT(obj->extra[1], ITEM_KEPT);
-	act("You will now keep $p.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+	act("You will now keep $p.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
     }
 }
 
@@ -777,8 +777,8 @@ void do_consume(CHAR_DATA *ch, char *argument)
         return;
     }
 
-    act("$n savagely consumes $p.", ch, NULL, NULL, corpse, NULL, NULL, NULL, TO_ROOM);
-    act("You savagely consume $p.", ch, NULL, NULL, corpse, NULL, NULL, NULL, TO_CHAR);
+    act("$n savagely consumes $p.", ch, NULL, NULL, corpse, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
+    act("You savagely consume $p.", ch, NULL, NULL, corpse, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 
     extract_obj(corpse);
 
@@ -871,8 +871,8 @@ void do_touch(CHAR_DATA *ch, char *argument)
     }
     else
     {
-		act("$n touches $p briefly.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM);
-		act("You touch $p briefly.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+		act("$n touches $p briefly.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
+		act("You touch $p briefly.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 
 		ITERATOR spit;
 		iterator_start(&spit, TATTOO(obj)->spells);
@@ -896,7 +896,7 @@ void do_touch(CHAR_DATA *ch, char *argument)
 			obj->condition -= number_range(5,10);
 			if (obj->condition <= 0)
 			{
-				act("$p fades away as the ink dries.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_ALL);
+				act("$p fades away as the ink dries.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_ALL, NULL, NULL);
 				extract_obj(obj);
 			}
 		}
@@ -941,8 +941,8 @@ void do_ruboff(CHAR_DATA *ch, char *argument)
 
 	if(!p_percent_trigger(NULL, obj, NULL, NULL, ch, NULL, NULL, NULL, NULL, TRIG_REMOVE, NULL,0,0,0,0,0))
 	{
-		act("$n rubs $p vigorously until it fades away..", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM);
-		act("You rub $p vigorously until it fades away.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+		act("$n rubs $p vigorously until it fades away..", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
+		act("You rub $p vigorously until it fades away.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 	}
 
 	extract_obj(obj);
@@ -959,9 +959,9 @@ bool can_ink_spell(CHAR_DATA *ch, SKILL_ENTRY *spell, CHAR_DATA *victim, int wea
 	if (!IS_SET(spell->skill->flags, SKILL_CAN_INK))
 	{
 		if (victim != ch)
-			act_new("You cannot ink $t into a tattoo on $N.", ch,victim,NULL,NULL,NULL,spell->skill->name,NULL,TO_CHAR,POS_DEAD,NULL);
+			act_new("You cannot ink $t into a tattoo on $N.", ch,victim, NULL, NULL,NULL,NULL,NULL,spell->skill->name,NULL,TO_CHAR,POS_DEAD,NULL);
 		else
-			act_new("You cannot ink $t into a tattoo.", ch,NULL,NULL,NULL,NULL,spell->skill->name,NULL,TO_CHAR,POS_DEAD,NULL);
+			act_new("You cannot ink $t into a tattoo.", ch, NULL, NULL,NULL,NULL,NULL,NULL,spell->skill->name,NULL,TO_CHAR,POS_DEAD,NULL);
 		return false;
 	}
 
@@ -970,9 +970,9 @@ bool can_ink_spell(CHAR_DATA *ch, SKILL_ENTRY *spell, CHAR_DATA *victim, int wea
 		SCRIPT_DATA *script = get_script_token(spell->token->pIndexData, TRIG_TOKEN_TOUCH, TRIGSLOT_SPELL);
 		if(!script) {
 			if (victim != ch)
-				act_new("You cannot ink $t into a tattoo on $N.", ch,victim,NULL,NULL,NULL,spell->skill->name,NULL,TO_CHAR,POS_DEAD,NULL);
+				act_new("You cannot ink $t into a tattoo on $N.", ch,victim, NULL, NULL,NULL,NULL,NULL,spell->skill->name,NULL,TO_CHAR,POS_DEAD,NULL);
 			else
-				act_new("You cannot ink $t into a tattoo.", ch,NULL,NULL,NULL,NULL,spell->skill->name,NULL,TO_CHAR,POS_DEAD,NULL);
+				act_new("You cannot ink $t into a tattoo.", ch, NULL, NULL,NULL,NULL,NULL,NULL,spell->skill->name,NULL,TO_CHAR,POS_DEAD,NULL);
 			return false;
 		}
 
@@ -982,9 +982,9 @@ bool can_ink_spell(CHAR_DATA *ch, SKILL_ENTRY *spell, CHAR_DATA *victim, int wea
 			if (ret != PRET_SILENT)
 			{
 				if (victim != ch)
-					act_new("You cannot ink $t into a tattoo on $N.", ch,victim,NULL,NULL,NULL,spell->skill->name,NULL,TO_CHAR,POS_DEAD,NULL);
+					act_new("You cannot ink $t into a tattoo on $N.", ch,victim, NULL, NULL,NULL,NULL,NULL,spell->skill->name,NULL,TO_CHAR,POS_DEAD,NULL);
 				else
-					act_new("You cannot ink $t into a tattoo.", ch,NULL,NULL,NULL,NULL,spell->skill->name,NULL,TO_CHAR,POS_DEAD,NULL);
+					act_new("You cannot ink $t into a tattoo.", ch, NULL, NULL,NULL,NULL,NULL,NULL,spell->skill->name,NULL,TO_CHAR,POS_DEAD,NULL);
 			}
 			return false;
 		}
@@ -994,9 +994,9 @@ bool can_ink_spell(CHAR_DATA *ch, SKILL_ENTRY *spell, CHAR_DATA *victim, int wea
 		if(!spell->skill->touch_fun)
 		{
 			if (victim != ch)
-				act_new("You cannot ink $t into a tattoo on $N.", ch,victim,NULL,NULL,NULL,spell->skill->name,NULL,TO_CHAR,POS_DEAD,NULL);
+				act_new("You cannot ink $t into a tattoo on $N.", ch,victim, NULL, NULL,NULL,NULL,NULL,spell->skill->name,NULL,TO_CHAR,POS_DEAD,NULL);
 			else
-				act_new("You cannot ink $t into a tattoo.", ch,NULL,NULL,NULL,NULL,spell->skill->name,NULL,TO_CHAR,POS_DEAD,NULL);
+				act_new("You cannot ink $t into a tattoo.", ch, NULL, NULL,NULL,NULL,NULL,NULL,spell->skill->name,NULL,TO_CHAR,POS_DEAD,NULL);
 			return false;
 		}
 
@@ -1142,8 +1142,8 @@ void do_ink(CHAR_DATA *ch, char *argument)
 	if (!has_inks(ch, need, true))
 		return;
 
-	act("{Y$n lays out the necessary inks and begins tattooing...{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
-	act("{YYou lay out the necessary inks and begin tattooing...{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+	act("{Y$n lays out the necessary inks and begins tattooing...{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
+	act("{YYou lay out the necessary inks and begin tattooing...{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 
 	extract_inks(ch, need);
 
@@ -1172,8 +1172,8 @@ void ink_end( CHAR_DATA *ch )
 	// Make sure the victim doesn't have the wear location used
 	if (get_eq_char(ch->ink_target, ch->ink_loc))
 	{
-		act("{Y$n's attempt to ink a tattoo fails miserably.{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
-		act("{YYou fail to coalesce the ink into a tattoo, dispersing them on the wind.{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+		act("{Y$n's attempt to ink a tattoo fails miserably.{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
+		act("{YYou fail to coalesce the ink into a tattoo, dispersing them on the wind.{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		return;
 	}
 
@@ -1213,8 +1213,8 @@ void ink_end( CHAR_DATA *ch )
 
     if (number_percent() >= chance)
     {
-		act("{Y$n's attempt to ink a tattoo fails miserably.{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
-		act("{YYou fail to coalesce the ink into a tattoo, dispersing them on the wind.{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+		act("{Y$n's attempt to ink a tattoo fails miserably.{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
+		act("{YYou fail to coalesce the ink into a tattoo, dispersing them on the wind.{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		check_improve(ch, gsk_tattoo, false, 2);
 		return;
     }
@@ -1248,12 +1248,12 @@ void ink_end( CHAR_DATA *ch )
 	else strcpy(tattoo_name, skill_entry_name(ch->ink_info[0]));
 
 	if(ch->ink_target != ch) {
-		act("You coalesce the ink into a tattoo of $t onto $N's skin.", ch, ch->ink_target, NULL, NULL, NULL, tattoo_name, NULL, TO_CHAR);
-		act("$n coalesces the ink into a tattoo of $t onto your skin.", ch, ch->ink_target, NULL, NULL, NULL, tattoo_name, NULL, TO_VICT);
-		act("$n coalesces the ink into a tattoo of $t onto $N's skin.", ch, ch->ink_target, NULL, NULL, NULL, tattoo_name, NULL, TO_NOTVICT);
+		act("You coalesce the ink into a tattoo of $t onto $N's skin.", ch, ch->ink_target, NULL, NULL, NULL, tattoo_name, NULL, TO_CHAR, NULL, NULL);
+		act("$n coalesces the ink into a tattoo of $t onto your skin.", ch, ch->ink_target, NULL, NULL, NULL, tattoo_name, NULL, TO_VICT, NULL, NULL);
+		act("$n coalesces the ink into a tattoo of $t onto $N's skin.", ch, ch->ink_target, NULL, NULL, NULL, tattoo_name, NULL, TO_NOTVICT, NULL, NULL);
 	} else {
-		act("You coalesce the ink into a tattoo of $t onto your skin.", ch, NULL, NULL, NULL, NULL, tattoo_name, NULL, TO_CHAR);
-		act("$n coalesces the ink into a tattoo of $t onto $s skin.", ch, NULL, NULL, NULL, NULL, tattoo_name, NULL, TO_ROOM);
+		act("You coalesce the ink into a tattoo of $t onto your skin.", ch, NULL, NULL, NULL, NULL, tattoo_name, NULL, TO_CHAR, NULL, NULL);
+		act("$n coalesces the ink into a tattoo of $t onto $s skin.", ch, NULL, NULL, NULL, NULL, tattoo_name, NULL, TO_ROOM, NULL, NULL);
 	}
 
     check_improve(ch, gsk_tattoo, true, 2);
@@ -1380,12 +1380,12 @@ void do_affix(CHAR_DATA *ch, char *argument)
 
 	if(!silent) {
 		if(victim != ch) {
-			act("$n affixes $p on $N's skin.", ch, victim, NULL, obj, NULL, NULL, NULL, TO_NOTVICT);
-			act("$n affixes $p on your skin.", ch, victim, NULL, obj, NULL, NULL, NULL, TO_VICT);
-			act("You affix $p on $N's skin.", ch,  victim, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+			act("$n affixes $p on $N's skin.", ch, victim, NULL, obj, NULL, NULL, NULL, TO_NOTVICT, NULL, NULL);
+			act("$n affixes $p on your skin.", ch, victim, NULL, obj, NULL, NULL, NULL, TO_VICT, NULL, NULL);
+			act("You affix $p on $N's skin.", ch,  victim, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		} else {
-			act("$n affixes $p to $s skin.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM);
-			act("You affix $p to your skin.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+			act("$n affixes $p to $s skin.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
+			act("You affix $p to your skin.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		}
 		p_percent_trigger(NULL, obj, NULL, NULL, ch, victim, NULL, NULL, NULL, TRIG_WEAR, NULL,0,0,0,0,0);
 	}

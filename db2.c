@@ -18,136 +18,202 @@
 #include "tables.h"
 
 
-int social_count;
-struct social_type	social_table		[MAX_SOCIALS];
+LIST *social_list;
 
+SOCIAL_DATA *new_social_data(void) {
+    SOCIAL_DATA *social;
+    social = (SOCIAL_DATA *)alloc_perm(sizeof(*social));
+    social->name = NULL;
+    social->enabled = true; // Default to enabled
+    social->char_no_arg = NULL;
+    social->others_no_arg = NULL;
+    social->char_found = NULL;
+    social->others_found = NULL;
+    social->vict_found = NULL;
+    social->char_not_found = NULL;
+    social->char_auto = NULL;
+    social->others_auto = NULL;
+    return social;
+}
 
-void load_socials( FILE *fp)
-{
-    for ( ; ; )
-    {
-    	struct social_type social;
-    	char *temp;
-        /* clear social */
-	social.char_no_arg = NULL;
-	social.others_no_arg = NULL;
-	social.char_found = NULL;
-	social.others_found = NULL;
-	social.vict_found = NULL;
-	social.char_not_found = NULL;
-	social.char_auto = NULL;
-	social.others_auto = NULL;
+void free_social_data(SOCIAL_DATA *social) {
+    if (!social) return;
+    free_string(social->name);
+    free_string(social->char_no_arg);
+    free_string(social->others_no_arg);
+    free_string(social->char_found);
+    free_string(social->others_found);
+    free_string(social->vict_found);
+    free_string(social->char_not_found);
+    free_string(social->char_auto);
+    free_string(social->others_auto);
+    free_perm(social, sizeof(*social));
+}
 
-    	temp = fread_word(fp);
-    	if (!strcmp(temp,"#0"))
-	    return;  /* done */
-#if defined(social_debug)
-	else
-	    printf("%s\n\r",temp);
-#endif
+void insert_social_sorted(SOCIAL_DATA *social) {
+    ITERATOR it;
+    SOCIAL_DATA *s_iter;
 
-    	strcpy(social.name,temp);
-    	fread_to_eol(fp);
+    if (!social_list) { // Should be initialized in load_socials
+        bug("insert_social_sorted: social_list is NULL.",0);
+        return;
+    }
 
-	temp = fread_string_eol(fp);
-	if (!strcmp(temp,"$"))
-	     social.char_no_arg = NULL;
-	else if (!strcmp(temp,"#"))
-	{
-	     social_table[social_count] = social;
-	     social_count++;
-	     continue;
-	}
-        else
-	    social.char_no_arg = temp;
-
-        temp = fread_string_eol(fp);
-        if (!strcmp(temp,"$"))
-             social.others_no_arg = NULL;
-        else if (!strcmp(temp,"#"))
-        {
-	     social_table[social_count] = social;
-             social_count++;
-             continue;
+    iterator_start(&it, social_list);
+    while((s_iter = (SOCIAL_DATA *)iterator_nextdata(&it))) {
+        if (str_cmp(social->name, s_iter->name) < 0) {
+            iterator_insert_before(&it, social);
+            iterator_stop(&it);
+            return;
         }
-        else
-	    social.others_no_arg = temp;
+    }
+    iterator_stop(&it);
+    list_appendlink(social_list, social); // Append if list was empty or new social is last alphabetically
+}
 
-        temp = fread_string_eol(fp);
-        if (!strcmp(temp,"$"))
-             social.char_found = NULL;
-        else if (!strcmp(temp,"#"))
-        {
-	     social_table[social_count] = social;
-             social_count++;
-             continue;
+
+void save_socials(void) {
+    FILE *fp;
+    ITERATOR it;
+    SOCIAL_DATA *social;
+
+    if ((fp = fopen(SOCIALS_FILE, "w")) == NULL) {
+        perror(SOCIALS_FILE);
+        bug("save_socials: fopen", 0);
+        return;
+    }
+
+    iterator_start(&it, social_list);
+    while((social = (SOCIAL_DATA *)iterator_nextdata(&it))) {
+        fprintf(fp, "#SOCIAL %s~\n", social->name);
+        fprintf(fp, "Enabled %d\n", social->enabled ? 1 : 0);
+        if (social->char_no_arg && social->char_no_arg[0] != '\0')
+            fprintf(fp, "CharNoArg %s~\n", social->char_no_arg);
+        if (social->others_no_arg && social->others_no_arg[0] != '\0')
+            fprintf(fp, "OthersNoArg %s~\n", social->others_no_arg);
+        if (social->char_found && social->char_found[0] != '\0')
+            fprintf(fp, "CharFound %s~\n", social->char_found);
+        if (social->others_found && social->others_found[0] != '\0')
+            fprintf(fp, "OthersFound %s~\n", social->others_found);
+        if (social->vict_found && social->vict_found[0] != '\0')
+            fprintf(fp, "VictFound %s~\n", social->vict_found);
+        if (social->char_not_found && social->char_not_found[0] != '\0')
+            fprintf(fp, "CharNotFound %s~\n", social->char_not_found);
+        if (social->char_auto && social->char_auto[0] != '\0')
+            fprintf(fp, "CharAuto %s~\n", social->char_auto);
+        if (social->others_auto && social->others_auto[0] != '\0')
+            fprintf(fp, "OthersAuto %s~\n", social->others_auto);
+        fprintf(fp, "#-SOCIAL\n\n");
+    }
+    iterator_stop(&it);
+
+    fprintf(fp, "#END\n");
+    fclose(fp);
+    log_string("Socials saved.");
+}
+
+void load_socials(void) {
+    FILE *fp;
+    SOCIAL_DATA *social = NULL;
+    char *word;
+
+    social_list = list_createx(false, NULL, (void(*)(void*))free_social_data);
+    if (!IS_VALID(social_list)) {
+        bug("load_socials: failed to create social_list.", 0);
+        return; // Critical error
+    }
+
+
+    if ((fp = fopen(SOCIALS_FILE, "r")) == NULL) {
+        log_string("load_socials: socials.dat not found. Creating empty list.");
+        // Optionally, create a default socials.dat or bootstrap some basic socials
+        // For now, just means no socials are loaded.
+        save_socials(); // Create an empty file with #END
+        return;
+    }
+
+    for (;;) {
+        word = fread_word(fp);
+
+        if (!str_cmp(word, "#SOCIAL")) {
+            if (social != NULL) { // Should not happen if format is correct
+                 bug("load_socials: #SOCIAL found before #-SOCIAL",0);
+                 free_social_data(social); // Clean up previous one
+            }
+            social = new_social_data();
+            social->name = fread_string(fp);
+            continue;
+        } else if (!str_cmp(word, "#-SOCIAL")) {
+            if (social != NULL) {
+                if (social->name == NULL || social->name[0] == '\0') {
+                    bug("load_socials: Social loaded with no name.",0);
+                    free_social_data(social);
+                } else {
+                    insert_social_sorted(social);
+                }
+                social = NULL;
+            } else {
+                bug("load_socials: #-SOCIAL found without active #SOCIAL block.",0);
+            }
+            continue;
+        } else if (!str_cmp(word, "#END")) {
+            if (social != NULL) { // Unclosed social block at EOF
+                bug("load_socials: #END found with unclosed #SOCIAL block.",0);
+                free_social_data(social);
+            }
+            break;
         }
-       	else
-	    social.char_found = temp;
 
-        temp = fread_string_eol(fp);
-        if (!strcmp(temp,"$"))
-             social.others_found = NULL;
-        else if (!strcmp(temp,"#"))
-        {
-	     social_table[social_count] = social;
-             social_count++;
-             continue;
+        if (social == NULL) {
+            bug("load_socials: Data found outside #SOCIAL block: %s", word);
+            fread_to_eol(fp); // Skip rest of the line
+            continue;
         }
-        else
-	    social.others_found = temp;
 
-        temp = fread_string_eol(fp);
-        if (!strcmp(temp,"$"))
-             social.vict_found = NULL;
-        else if (!strcmp(temp,"#"))
-        {
-	     social_table[social_count] = social;
-             social_count++;
-             continue;
+        // Inside a #SOCIAL block
+        if (!str_cmp(word, "Enabled")) {
+            social->enabled = (fread_number(fp) == 1);
+        } else if (!str_cmp(word, "CharNoArg")) {
+            social->char_no_arg = fread_string(fp);
+        } else if (!str_cmp(word, "OthersNoArg")) {
+            social->others_no_arg = fread_string(fp);
+        } else if (!str_cmp(word, "CharFound")) {
+            social->char_found = fread_string(fp);
+        } else if (!str_cmp(word, "OthersFound")) {
+            social->others_found = fread_string(fp);
+        } else if (!str_cmp(word, "VictFound")) {
+            social->vict_found = fread_string(fp);
+        } else if (!str_cmp(word, "CharNotFound")) {
+            social->char_not_found = fread_string(fp);
+        } else if (!str_cmp(word, "CharAuto")) {
+            social->char_auto = fread_string(fp);
+        } else if (!str_cmp(word, "OthersAuto")) {
+            social->others_auto = fread_string(fp);
+        } else {
+            bug("load_socials: Unknown keyword '%s' in social '%s'.", word, social->name ? social->name : "(unknown)");
+            fread_to_eol(fp);
         }
-        else
-	    social.vict_found = temp;
+    }
 
-        temp = fread_string_eol(fp);
-        if (!strcmp(temp,"$"))
-             social.char_not_found = NULL;
-        else if (!strcmp(temp,"#"))
-        {
-	     social_table[social_count] = social;
-             social_count++;
-             continue;
+    fclose(fp);
+    log_string(formatf("Socials loaded: %d socials.", list_size(social_list)));
+}
+
+SOCIAL_DATA *get_social(const char *name) {
+    ITERATOR it;
+    SOCIAL_DATA *social;
+
+    if (!social_list) return NULL;
+
+    iterator_start(&it, social_list);
+    while((social = (SOCIAL_DATA *)iterator_nextdata(&it))) {
+        if (!str_prefix(name, social->name)) { // str_prefix for partial match, case-insensitive
+            iterator_stop(&it);
+            return social;
         }
-        else
-	    social.char_not_found = temp;
-
-        temp = fread_string_eol(fp);
-        if (!strcmp(temp,"$"))
-             social.char_auto = NULL;
-        else if (!strcmp(temp,"#"))
-        {
-	     social_table[social_count] = social;
-             social_count++;
-             continue;
-        }
-        else
-	    social.char_auto = temp;
-
-        temp = fread_string_eol(fp);
-        if (!strcmp(temp,"$"))
-             social.others_auto = NULL;
-        else if (!strcmp(temp,"#"))
-        {
-             social_table[social_count] = social;
-             social_count++;
-             continue;
-        }
-        else
-	    social.others_auto = temp;
-
-	social_table[social_count] = social;
-    	social_count++;
-   }
+    }
+    iterator_stop(&it);
+    return NULL;
 }
 
 

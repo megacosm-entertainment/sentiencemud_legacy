@@ -26,7 +26,7 @@ SPELL_FUNC(spell_faerie_fog)
 {
 	CHAR_DATA *ich;
 
-	act("$n conjures a cloud of purple smoke.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+	act("$n conjures a cloud of purple smoke.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 	send_to_char("You conjure a cloud of purple smoke.\n\r", ch);
 
 	for (ich = ch->in_room->people; ich; ich = ich->next_in_room) {
@@ -56,7 +56,7 @@ SPELL_FUNC(spell_faerie_fog)
 		// Register1 = 1 -> faerie fog
 		p_percent_trigger(tch, NULL, NULL, NULL, ch, NULL, NULL, NULL, NULL, TRIG_REVEAL, NULL, 1,0,0,0,0);
 
-		act("$n is revealed!", tch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+		act("$n is revealed!", tch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 		send_to_char("You are revealed!\n\r", tch);
 	}
 	return true;
@@ -80,7 +80,7 @@ SPELL_FUNC(spell_fly)
 		if (victim == ch)
 			send_to_char("You are already airborne.\n\r",ch);
 		else
-			act("$N doesn't need your help to fly.",ch,victim, NULL, NULL, NULL, NULL, NULL,TO_CHAR);
+			act("$N doesn't need your help to fly.",ch,victim, NULL, NULL, NULL, NULL, NULL,TO_CHAR, NULL, NULL);
 		return false;
 	}
 
@@ -97,7 +97,7 @@ SPELL_FUNC(spell_fly)
 	affect_to_char(victim, &af);
 
 	send_to_char("Your feet rise off the ground.\n\r", victim);
-	act("$n's feet rise off the ground.", victim, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+	act("$n's feet rise off the ground.", victim, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
 	return true;
 }
@@ -125,7 +125,7 @@ TOUCH_FUNC(touch_fly)
 	affect_to_char(ch, &af);
 
 	send_to_char("Your feet rise off the ground.\n\r", ch);
-	act("$n's feet rise off the ground.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+	act("$n's feet rise off the ground.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 	return true;
 }
 
@@ -150,7 +150,7 @@ SPELL_FUNC(spell_underwater_breathing)
 		if (victim == ch)
 			send_to_char("You can already breath underwater.\n\r",ch);
 		else
-			act("$N can already breath underwater.",ch,victim, NULL, NULL, NULL, NULL, NULL,TO_CHAR);
+			act("$N can already breath underwater.",ch,victim, NULL, NULL, NULL, NULL, NULL,TO_CHAR, NULL, NULL);
 		return false;
 	}
 
@@ -166,7 +166,7 @@ SPELL_FUNC(spell_underwater_breathing)
 	af.slot = obj_wear_loc;
 	affect_to_char(victim, &af);
 	send_to_char("You feel a strange sensation as gills sprout behind your ears.\n\r", victim);
-	if (ch != victim) act("Gills sprout from behind $N's ears.",ch,victim, NULL, NULL, NULL, NULL, NULL,TO_CHAR);
+	if (ch != victim) act("Gills sprout from behind $N's ears.",ch,victim, NULL, NULL, NULL, NULL, NULL,TO_CHAR, NULL, NULL);
 	return true;
 }
 
@@ -185,7 +185,7 @@ SPELL_FUNC(spell_wind_of_confusion)
 	CHAR_DATA *vch;
 
 	send_to_char("{MYou summon forth a howling wind!{x\n\r", ch);
-	act("{RA howling chaotic wind of confusion whips around you!{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+	act("{RA howling chaotic wind of confusion whips around you!{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
 	for (vch = ch->in_room->people; vch; vch = vch->next_in_room) {
 		if (!is_same_group(ch, vch) && ch->fighting && is_same_group(ch->fighting, vch)) {

@@ -41,6 +41,9 @@
 #include <math.h>
 #include <libpng/png.h>
 #include <qrencode.h>
+#include <sys/stat.h>  /* For chmod() */
+#include <openssl/rand.h>  /* For RAND_bytes() */
+#include <openssl/evp.h>
 #include "merc.h"
 #include "interp.h"
 #include "magic.h"
@@ -48,10 +51,13 @@
 #include "tables.h"
 #include "scripts.h"
 #include "wilds.h"
-#include "openssl/evp.h"
+
+unsigned char crypto_key[AES_KEY_SIZE]; // Server-side key
+bool key_initialized;
 
 
 extern LLIST *loaded_instances;
+bool is_llist(const void *ptr);
 
 // from act_info.c
 void show_char_to_char args((CHAR_DATA * list, CHAR_DATA * ch, CHAR_DATA * victim));
@@ -1250,8 +1256,8 @@ void affect_modify(CHAR_DATA *ch, AFFECT_DATA *paf, bool fAdd)
 	if (depth == 0)
 	{
 	    depth++;
-	    act("You drop $p.", ch, NULL, NULL, wield, NULL, NULL, NULL, TO_CHAR);
-	    act("$n drops $p.", ch, NULL, NULL, wield, NULL, NULL, NULL, TO_ROOM);
+	    act("You drop $p.", ch, NULL, NULL, wield, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+	    act("$n drops $p.", ch, NULL, NULL, wield, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 	    obj_from_char(wield);
 	    obj_to_room(wield, ch->in_room);
 	    depth--;
@@ -2216,7 +2222,7 @@ void char_to_room(CHAR_DATA *ch, ROOM_INDEX_DATA *pRoomIndex)
             	!IS_AFFECTED(vch,AFF_PLAGUE) && number_bits(6) == 0)
             {
             	send_to_char("You feel hot and feverish.\n\r",vch);
-            	act("$n shivers and looks very ill.",vch,NULL,NULL, NULL, NULL, NULL, NULL,TO_ROOM);
+            	act("$n shivers and looks very ill.",vch,NULL,NULL, NULL, NULL, NULL, NULL,TO_ROOM, NULL, NULL);
             	affect_join(vch,&plague);
             }
         }
@@ -2560,8 +2566,8 @@ void equip_char(CHAR_DATA *ch, OBJ_DATA *obj, int iWear)
     ||   (IS_OBJ_STAT(obj, ITEM_ANTI_GOOD)    && IS_GOOD(ch)   )
     ||   (IS_OBJ_STAT(obj, ITEM_ANTI_NEUTRAL) && IS_NEUTRAL(ch)))
     {
-	act("You are zapped by $p and drop it.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
-	act("$n is zapped by $p and drops it.",  ch, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM);
+	act("You are zapped by $p and drop it.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+	act("$n is zapped by $p and drops it.",  ch, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
         REMOVE_BIT(obj->extra[1], ITEM_KEPT);
 
@@ -5052,7 +5058,7 @@ void stop_hunt(CHAR_DATA *ch, bool dead)
 
     if (!dead && ch->home_room != NULL)
     {
-    	act("$n wanders off.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+    	act("$n wanders off.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 	char_from_room(ch);
 	char_to_room(ch, ch->home_room);
     }
@@ -5692,7 +5698,7 @@ void return_from_maze(CHAR_DATA *ch)
 
     ch->maze_time_left = 0;
 
-    act("{W$n plummets to the ground with a loud THUD!{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+    act("{W$n plummets to the ground with a loud THUD!{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 }
 
 
@@ -6670,7 +6676,7 @@ bool can_give_obj(CHAR_DATA *ch, OBJ_DATA *obj, CHAR_DATA *victim, bool silent)
     if (obj->wear_loc != WEAR_NONE)
     {
 	if (!silent)
-	    act("You'll have to remove $p first.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+	    act("You'll have to remove $p first.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 
 	return false;
     }
@@ -6679,7 +6685,7 @@ bool can_give_obj(CHAR_DATA *ch, OBJ_DATA *obj, CHAR_DATA *victim, bool silent)
     &&  get_obj_vnum_carry(victim, obj->pIndexData->vnum, victim) != NULL)
     {
 	if (!silent)
-	    act("A mysterious force prevents you from giving $p to $N.", ch, victim, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+	    act("A mysterious force prevents you from giving $p to $N.", ch, victim, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 
 	return false;
     }
@@ -6687,7 +6693,7 @@ bool can_give_obj(CHAR_DATA *ch, OBJ_DATA *obj, CHAR_DATA *victim, bool silent)
     if (IS_NPC(victim) && victim->shop != NULL)
     {
 	if (!silent)
-	    act("{R$N tells you 'Sorry, you'll have to sell that.{x'", ch, victim, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+	    act("{R$N tells you 'Sorry, you'll have to sell that.{x'", ch, victim, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 
 	return false;
     }
@@ -6749,7 +6755,7 @@ bool can_drop_obj(CHAR_DATA *ch, OBJ_DATA *obj, bool silent)
     if (obj->wear_loc != WEAR_NONE)
     {
 	if (!silent)
-	    act("You must remove $p first.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+	    act("You must remove $p first.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 
 	return false;
     }
@@ -6771,7 +6777,7 @@ bool can_drop_obj(CHAR_DATA *ch, OBJ_DATA *obj, bool silent)
     if (IS_SET(obj->extra[0], ITEM_NODROP))
     {
 		if (!silent)
-			act("You can't let go of $p.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+			act("You can't let go of $p.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 
 		return false;
     }
@@ -6812,17 +6818,17 @@ bool can_get_obj(CHAR_DATA *ch, OBJ_DATA *obj, OBJ_DATA *container, MAIL_DATA *m
 	return false;
 
     if (ch->carry_number + get_obj_number(obj) > can_carry_n(ch))
-	MSG(act("$p: you can't carry that many items.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR))
+	MSG(act("$p: you can't carry that many items.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL))
 
     if (get_carry_weight(ch) + get_obj_weight(obj) > can_carry_w(ch))
-	MSG(act("$p: you can't carry that much weight.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR))
+	MSG(act("$p: you can't carry that much weight.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL))
 
 	// FIX .. look for index
     if (IS_SET(obj->extra[1], ITEM_SINGULAR)
     &&  get_obj_vnum_carry(ch, obj->pIndexData->vnum, ch) != NULL)
     {
 	if (!silent)
-	    act("A mysterious force prevents you from picking up $p.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+	    act("A mysterious force prevents you from picking up $p.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 
 	return false;
     }
@@ -6875,7 +6881,7 @@ bool can_get_obj(CHAR_DATA *ch, OBJ_DATA *obj, OBJ_DATA *container, MAIL_DATA *m
 		if (IS_CONTAINER(container) && IS_SET(CONTAINER(container)->flags, CONT_CLOSED))
 		{
 			if (!silent)
-				act("The $d is closed.", ch, NULL, NULL, NULL, NULL, NULL, container->name, TO_CHAR);
+				act("The $d is closed.", ch, NULL, NULL, NULL, NULL, NULL, container->name, TO_CHAR, NULL, NULL);
 
 			return false;
 		}
@@ -6888,7 +6894,7 @@ bool can_get_obj(CHAR_DATA *ch, OBJ_DATA *obj, OBJ_DATA *container, MAIL_DATA *m
     if (mail)
     {
 		if (get_carry_weight(ch) + get_obj_weight(obj) > can_carry_w(ch))
-			MSG(act("$p: you can't carry that much weight.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR))
+			MSG(act("$p: you can't carry that much weight.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL))
 		}
 
 		// Get an item from the ground or from a container on the ground
@@ -6898,7 +6904,7 @@ bool can_get_obj(CHAR_DATA *ch, OBJ_DATA *obj, OBJ_DATA *container, MAIL_DATA *m
 		{
 			if (!IS_SET(obj->wear_flags, ITEM_TAKE))
 			{
-				act("$p cannot be taken.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+				act("$p cannot be taken.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 			}
 
 			if (!silent)
@@ -6908,7 +6914,7 @@ bool can_get_obj(CHAR_DATA *ch, OBJ_DATA *obj, OBJ_DATA *container, MAIL_DATA *m
 		}
 
 		if (get_carry_weight(ch) + get_obj_weight(obj) > can_carry_w(ch))
-		    MSG(act("$p: you can't carry that much weight.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR))
+		    MSG(act("$p: you can't carry that much weight.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL))
 
 		if (obj_room(obj))
 		{
@@ -6917,7 +6923,7 @@ bool can_get_obj(CHAR_DATA *ch, OBJ_DATA *obj, OBJ_DATA *container, MAIL_DATA *m
 				if (gch->on == obj)
 				{
 					if (!silent)
-					act("$N appears to be using $p.", ch, gch, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+					act("$N appears to be using $p.", ch, gch, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 
 					return false;
 				}
@@ -6927,7 +6933,7 @@ bool can_get_obj(CHAR_DATA *ch, OBJ_DATA *obj, OBJ_DATA *container, MAIL_DATA *m
 		if (IS_CART(obj))
 		{
 			if (!silent)
-				act("$p is far too heavy.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+				act("$p is far too heavy.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 
 			return false;
 		}
@@ -6994,7 +7000,7 @@ bool can_put_obj(CHAR_DATA *ch, OBJ_DATA *obj, OBJ_DATA *container, MAIL_DATA *m
 		if (IS_CONTAINER(container) && IS_SET(CONTAINER(container)->flags, CONT_CLOSED))
 		{
 			if (!silent)
-				act("$p is closed.", ch, NULL, NULL, container, NULL, NULL, NULL, TO_CHAR);
+				act("$p is closed.", ch, NULL, NULL, container, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 			return false;
 		}
 
@@ -7019,7 +7025,7 @@ bool can_put_obj(CHAR_DATA *ch, OBJ_DATA *obj, OBJ_DATA *container, MAIL_DATA *m
 			(IS_SET(obj->extra[0], ITEM_NOUNCURSE) && IS_SET(obj->extra[0], ITEM_NODROP)))
 		{
 			if (!silent)
-				act("You can't put $p in $P.", ch, NULL, NULL, obj, container, NULL, NULL, TO_CHAR);
+				act("You can't put $p in $P.", ch, NULL, NULL, obj, container, NULL, NULL, TO_CHAR, NULL, NULL);
 
 			return false;
 		}
@@ -7027,7 +7033,7 @@ bool can_put_obj(CHAR_DATA *ch, OBJ_DATA *obj, OBJ_DATA *container, MAIL_DATA *m
 		if(!container_can_fit_volume(container, obj) || !container_can_fit_weight(container, obj))
 		{
 			if (!silent)
-				act("$p won't fit in $P.", ch, NULL, NULL, obj, container, NULL, NULL, TO_CHAR);
+				act("$p won't fit in $P.", ch, NULL, NULL, obj, container, NULL, NULL, TO_CHAR, NULL, NULL);
 			return false;
 		}
 
@@ -7046,9 +7052,9 @@ bool can_put_obj(CHAR_DATA *ch, OBJ_DATA *obj, OBJ_DATA *container, MAIL_DATA *m
 			if (!silent)
 			{
 				if (IS_CONTAINER(container) && IS_SET(CONTAINER(container)->flags, CONT_PUT_ON))
-					act("You can't put $p on $P.", ch, NULL, NULL, obj, container, NULL, NULL, TO_CHAR);
+					act("You can't put $p on $P.", ch, NULL, NULL, obj, container, NULL, NULL, TO_CHAR, NULL, NULL);
 				else
-					act("You can't put $p in $P.", ch, NULL, NULL, obj, container, NULL, NULL, TO_CHAR);
+					act("You can't put $p in $P.", ch, NULL, NULL, obj, container, NULL, NULL, TO_CHAR, NULL, NULL);
 			}
 			return false;
 		}
@@ -7061,9 +7067,9 @@ bool can_put_obj(CHAR_DATA *ch, OBJ_DATA *obj, OBJ_DATA *container, MAIL_DATA *m
 				if (!silent)
 				{
 					if (IS_CONTAINER(container) && IS_SET(CONTAINER(container)->flags, CONT_PUT_ON))
-						act("You can't put $p on $P.", ch, NULL, NULL, obj, container, NULL, NULL, TO_CHAR);
+						act("You can't put $p on $P.", ch, NULL, NULL, obj, container, NULL, NULL, TO_CHAR, NULL, NULL);
 					else
-						act("You can't put $p in $P.", ch, NULL, NULL, obj, container, NULL, NULL, TO_CHAR);
+						act("You can't put $p in $P.", ch, NULL, NULL, obj, container, NULL, NULL, TO_CHAR, NULL, NULL);
 				}
 				return false;
 			}
@@ -7076,9 +7082,9 @@ bool can_put_obj(CHAR_DATA *ch, OBJ_DATA *obj, OBJ_DATA *container, MAIL_DATA *m
 				if (!silent)
 				{
 					if (IS_SET(CONTAINER(container)->flags, CONT_PUT_ON))
-						act("$p is already on $P.", ch, NULL, NULL, obj, container, NULL, NULL, TO_CHAR);
+						act("$p is already on $P.", ch, NULL, NULL, obj, container, NULL, NULL, TO_CHAR, NULL, NULL);
 					else
-						act("$p is already in $P.", ch, NULL, NULL, obj, container, NULL, NULL, TO_CHAR);
+						act("$p is already in $P.", ch, NULL, NULL, obj, container, NULL, NULL, TO_CHAR, NULL, NULL);
 				}
 				return false;
 			}
@@ -7106,7 +7112,7 @@ bool can_put_obj(CHAR_DATA *ch, OBJ_DATA *obj, OBJ_DATA *container, MAIL_DATA *m
 		if (obj->timer > 0)
 		{
 			if (!silent)
-			act("You can't send $p through the mail.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+			act("You can't send $p through the mail.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 
 			return false;
 		}
@@ -7123,7 +7129,7 @@ bool can_put_obj(CHAR_DATA *ch, OBJ_DATA *obj, OBJ_DATA *container, MAIL_DATA *m
 		if (IS_SET(obj->extra[0], ITEM_NOUNCURSE) && IS_SET(obj->extra[0], ITEM_NODROP))
 		{
 			if (!silent)
-			act("You can't let go of $p.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+			act("You can't let go of $p.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 
 			return false;
 		}
@@ -7177,7 +7183,7 @@ bool can_sacrifice_obj(CHAR_DATA *ch, OBJ_DATA *obj, bool silent)
     ||  (obj->item_type == ITEM_CORPSE_PC && obj->contains))
     {
 	if (!silent)
-	    act("$p is not an acceptable sacrifice.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+	    act("$p is not an acceptable sacrifice.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 
 	return false;
     }
@@ -7186,7 +7192,7 @@ bool can_sacrifice_obj(CHAR_DATA *ch, OBJ_DATA *obj, bool silent)
     && obj->contains && !IS_SET(ch->act[1], PLR_SACRIFICE_ALL))
     {
 	if (!silent)
-	    act("You must rid $p of its belongings before sacrificing it.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+	    act("You must rid $p of its belongings before sacrificing it.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 
 	return false;
     }
@@ -7198,7 +7204,7 @@ bool can_sacrifice_obj(CHAR_DATA *ch, OBJ_DATA *obj, bool silent)
 	    if (gch->on == obj)
 	    {
 		if (!silent)
-		    act("$N appears to be using $p.", ch, gch, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+		    act("$N appears to be using $p.", ch, gch, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 
 		return false;
 	    }
@@ -7496,9 +7502,9 @@ void token_from_obj(TOKEN_DATA *token)
 			{
 				if (IS_VALID(paf->skill) && paf->skill->msg_obj) {
 					if (token->object->carried_by != NULL) {
-						act(paf->skill->msg_obj, token->object->carried_by, NULL, NULL, token->object, NULL, NULL, NULL, TO_CHAR);
+						act(paf->skill->msg_obj, token->object->carried_by, NULL, NULL, token->object, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 					} else if (token->object->in_room && token->object->in_room->people) {
-						act(paf->skill->msg_obj, token->object->in_room->people, NULL, NULL, token->object, NULL, NULL, NULL, TO_ALL);
+						act(paf->skill->msg_obj, token->object->in_room->people, NULL, NULL, token->object, NULL, NULL, NULL, TO_ALL, NULL, NULL);
 					}
 				}
 				affect_remove_obj(token->object, paf);
@@ -8110,7 +8116,7 @@ int use_catalyst_obj(CHAR_DATA *ch,ROOM_INDEX_DATA *room,OBJ_DATA *obj,int type,
 
 			if(aff->duration < 0) {
 				if(show && !p_percent_trigger(NULL, obj, NULL, NULL, ch, NULL, NULL, NULL, NULL, TRIG_CATALYST_SOURCE, NULL,0,0,0,0,0))
-					act("$p pulsates brightly.",room->people, NULL, NULL,obj, NULL, NULL,NULL,TO_ALL);
+					act("$p pulsates brightly.",room->people, NULL, NULL,obj, NULL, NULL,NULL,TO_ALL, NULL, NULL);
 				return -1;
 			}
 
@@ -8123,7 +8129,7 @@ int use_catalyst_obj(CHAR_DATA *ch,ROOM_INDEX_DATA *room,OBJ_DATA *obj,int type,
 
 				if(!obj->catalyst) {	// All catalyst affects have been exhausted
 					if(show && !p_percent_trigger(NULL, obj, NULL, NULL, ch, NULL, NULL, NULL, NULL, TRIG_CATALYST_FULL, NULL,0,0,0,0,0) && ch)
-						act("$p flares brightly and vanishes!",room->people, NULL, NULL,obj, NULL, NULL,NULL,TO_ALL);
+						act("$p flares brightly and vanishes!",room->people, NULL, NULL,obj, NULL, NULL,NULL,TO_ALL, NULL, NULL);
 					extract_obj(obj);
 					return total;
 				}
@@ -8137,7 +8143,7 @@ int use_catalyst_obj(CHAR_DATA *ch,ROOM_INDEX_DATA *room,OBJ_DATA *obj,int type,
 	}
 
 	if(show && used && !p_percent_trigger(NULL, obj, NULL, NULL, ch, NULL, NULL, NULL, NULL, TRIG_CATALYST, NULL,0,0,0,0,0)) {
-		act("$p shimmers brightly, but only dims back to normal.",room->people, NULL, NULL,obj, NULL, NULL,NULL,TO_ALL);
+		act("$p shimmers brightly, but only dims back to normal.",room->people, NULL, NULL,obj, NULL, NULL,NULL,TO_ALL, NULL, NULL);
 	}
 	return total;
 }
@@ -10073,7 +10079,7 @@ void restore_char(CHAR_DATA *ch, CHAR_DATA *whom, int percent)
 	// Will only be set when used by the command "restore"
 	//  - scripted restores will pass NULL
 	if(whom)
-		act("$n has restored you.",whom, ch, NULL, NULL, NULL, NULL, NULL,TO_VICT);
+		act("$n has restored you.",whom, ch, NULL, NULL, NULL, NULL, NULL,TO_VICT, NULL, NULL);
 
 	p_percent_trigger( ch, NULL, NULL, NULL, ch, whom, NULL,NULL, NULL, TRIG_RESTORE, NULL,0,0,0,0,0);
 
@@ -10988,8 +10994,24 @@ void send_email_ex(CHAR_DATA *ch, ACCOUNT_DATA *acct, char *email, char *subject
     else
         recipient_name = "Adventurer";
 
+	    // Create the plain text version of the email
     sprintf(body_buf, "Hello %s,\n\n%s\n\nSincerely,\n\nThe SentienceMUD Staff", recipient_name, message);
-    sprintf(body_buf_html, "Hello %s,<br/><br/>%s<br/><br/>Sincerely,<br/><br/>The SentienceMUD Staff", recipient_name, message);
+    
+    // Create the HTML version by converting all newlines to <br/> tags
+    char *src = body_buf;
+    char *dst = body_buf_html;
+    
+    // Convert newlines to <br/> tags
+    while (*src) {
+        if (*src == '\n') {
+            strcpy(dst, "<br/>");
+            dst += 5;  // Length of "<br/>"
+        } else {
+            *dst++ = *src;
+        }
+        src++;
+    }
+    *dst = '\0';
 
     quickmail_set_body(mailobj, body_buf);
     quickmail_add_body_memory(mailobj, "text/html", body_buf_html, strlen(body_buf_html), 0);
@@ -11244,14 +11266,42 @@ void generate_recovery_codes(char **codes, bool *used, int count) {
     }
 }
 
-bool check_recovery_code(CHAR_DATA *ch, const char *code) {
+bool check_recovery_code(CHAR_DATA *ch, const char *code)
+{
+    ACCOUNT_DATA *acct = NULL;
+    ACCOUNT_CHARACTER *acct_char = NULL;
+    bool has_auth_data = false;
+    
+    if (!ch || !code || !*code)
+        return false;
+        
+    // Get account character data
+    if (ch->desc && ch->desc->account) {
+        acct = ch->desc->account;
+        has_auth_data = get_character_auth_data(ch, acct, &acct_char);
+    }
+    
+    if (!has_auth_data || !acct_char) {
+        // Fall back to character pcdata as legacy support
+        for (int i = 0; i < MFA_RECOVERY_CODES; ++i) {
+            if (!ch->pcdata->recovery_used[i] && !str_cmp(ch->pcdata->recovery_codes[i], code)) {
+                ch->pcdata->recovery_used[i] = true;
+                save_char_obj(ch);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Check against account character recovery codes
     for (int i = 0; i < MFA_RECOVERY_CODES; ++i) {
-        if (!ch->pcdata->recovery_used[i] && !str_cmp(ch->pcdata->recovery_codes[i], code)) {
-            ch->pcdata->recovery_used[i] = true;
-            save_char_obj(ch);
+        if (!acct_char->recovery_used[i] && !str_cmp(acct_char->recovery_codes[i], code)) {
+            acct_char->recovery_used[i] = true;
+            save_account(acct);
             return true;
         }
     }
+    
     return false;
 }
 
@@ -11266,15 +11316,19 @@ bool check_account_recovery_code(ACCOUNT_DATA *acct, const char *code) {
     return false;
 }
 
-// Display recovery codes to the user
-void display_recovery_codes(DESCRIPTOR_DATA *d, CHAR_DATA *ch) {
+// Display recovery codes to the user using account character data
+void display_recovery_codes(DESCRIPTOR_DATA *d, ACCOUNT_CHARACTER *acct_char)
+{
+    if (!d || !acct_char)
+        return;
+        
     write_to_buffer(d, "\n\r{YYour recovery codes (each can be used once):{x\n\r", 0);
     for (int i = 0; i < MFA_RECOVERY_CODES; ++i) {
         char buf[128];
-        if (ch->pcdata->recovery_used[i])
-            sprintf(buf, "{R%s {X(used){x\n\r", ch->pcdata->recovery_codes[i]);
+        if (acct_char->recovery_used[i])
+            sprintf(buf, "{R%s {X(used){x\n\r", acct_char->recovery_codes[i]);
         else
-            sprintf(buf, "%s\n\r", ch->pcdata->recovery_codes[i]);
+            sprintf(buf, "%s\n\r", acct_char->recovery_codes[i]);
         write_to_buffer(d, buf, 0);
     }
 }
@@ -11640,4 +11694,640 @@ bool should_purge_deleted_character(const ACCOUNT_CHARACTER *ch_entry) {
     long delay = game_settings.character_delete_delay_days;
     if (delay <= 0) delay = 30; // Default to 7 days if not set
     return (current_time - ch_entry->delete_time) >= (delay * 86400);
+}
+
+
+void generate_discord_who() {
+    char buf[2 * MAX_STRING_LENGTH];
+    char level[50];
+    DESCRIPTOR_DATA *d;
+    int nMatch = 0;
+    int nMatch2 = 0;
+    CHAR_DATA *wch;
+    char classstr[100];
+    char racestr[100];
+    char *area_type;
+	char nocol[2 * MAX_STRING_LENGTH];
+
+    FILE *file;
+
+    // Open the file for writing
+    file = fopen(PLAYER_LIST, "w");
+    if (!file) {
+        log_string("Error: Unable to open player list file for writing.");
+        return;
+    }
+
+    fprintf(file, "Players in Sentience:\n\n```\n");
+
+    // Count total visible players
+    for (d = descriptor_list; d != NULL; d = d->next) {
+        if (d->connected != CON_PLAYING)
+            continue;
+
+        wch = (d->original != NULL) ? d->original : d->character;
+
+        if (wch) {
+            if (IS_IMMORTAL(wch) && (wch->invis_level > 0 || wch->incog_level > 0))
+                continue;
+            else
+                nMatch2++;
+        }
+    }
+
+    // Generate the who list
+    for (d = descriptor_list; d != NULL; d = d->next) {
+        wch = (d->original != NULL) ? d->original : d->character;
+
+        if (d->connected != CON_PLAYING || 
+            (IS_IMMORTAL(wch) && (wch->invis_level > 0 || wch->incog_level > 0)) || 
+            wch->invis_level > 0 || 
+            wch->incog_level > 0) {
+            continue;
+        }
+
+        if (wch->tot_level >= LEVEL_IMMORTAL)
+            strcpy(classstr, wch->pcdata->immortal->imm_flag);
+        else
+            strcpy(classstr, sub_class_table[get_profession(wch, SUBCLASS_CURRENT)].who_name[wch->sex]);
+
+        if (wch->race >= MAX_PC_RACE)
+            strcpy(racestr, "       ");
+        else
+            strcpy(racestr, pc_race_table[wch->race].who_name);
+
+        nMatch++;
+
+        area_type = get_char_where(wch);
+
+        if (IS_IMMORTAL(wch))
+            sprintf(level, "IMM");
+        else
+            sprintf(level, "%-3d", wch->tot_level);
+
+		// Fix the church name formatting
+		char church_buf[100];
+		if (wch->church)
+    		snprintf(church_buf, sizeof(church_buf), "[%s] ", wch->church->flag);
+		else
+    		church_buf[0] = '\0';
+
+        // Use snprintf to prevent buffer overflow
+        snprintf(buf, sizeof(buf),
+                "[%s] [%-7s %-12s %-6s] %s %s%s%s%s%s%s%s",
+                level,
+                racestr,
+                classstr,
+                area_type,
+                wch->name,
+				church_buf,
+                IS_SET(wch->act[0], PLR_BOTTER) ? "[BOTTER] " : "",
+                IS_SET(wch->act[0], PLR_HELPER) ? "[HELPER] " : "",
+                IS_SET(wch->comm, COMM_AFK) ? "[AFK] " : "",
+                IS_SET(wch->comm, COMM_QUIET) ? "[Q] " : "",
+                IS_SET(wch->act[0], PLR_PK) ? "[PK] " : "",
+                IS_SET(wch->act[0], PLR_BUILDING) ? "[Building] " : ""
+        );
+        
+        // Clear the buffer before stripping colors
+        memset(nocol, 0, sizeof(nocol));
+
+		STRIP_COLOUR(buf, nocol);
+
+        free_string(area_type);
+
+        // Strip color codes and write to file
+        fprintf(file, "%s\n", nocol);
+    }
+
+    if (nMatch != nMatch2) {
+        fprintf(file, "\nPlayers found: %d\n", nMatch);
+    }
+    fprintf(file, "```\nPlayers online: %d\n", nMatch2);
+	fprintf(file, "Generated at <t:%ld:F>\n", (long)current_time);
+
+    // Close the file
+    fclose(file);
+}
+
+void save_qr_code_as_png(QRcode *qrcode, const char *filename, int scale_factor) {
+    int scaled_width = qrcode->width * scale_factor;
+    FILE *fp = fopen(filename, "wb");
+    if (!fp) {
+        perror("fopen");
+        return;
+    }
+
+    png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    if (!png) {
+        fclose(fp);
+        return;
+    }
+
+    png_infop info = png_create_info_struct(png);
+    if (!info) {
+        png_destroy_write_struct(&png, NULL);
+        fclose(fp);
+        return;
+    }
+
+    if (setjmp(png_jmpbuf(png))) {
+        png_destroy_write_struct(&png, &info);
+        fclose(fp);
+        return;
+    }
+
+    png_init_io(png, fp);
+
+    png_set_IHDR(
+        png,
+        info,
+        scaled_width,
+        scaled_width,
+        8,
+        PNG_COLOR_TYPE_GRAY,
+        PNG_INTERLACE_NONE,
+        PNG_COMPRESSION_TYPE_DEFAULT,
+        PNG_FILTER_TYPE_DEFAULT
+    );
+
+    png_write_info(png, info);
+
+    for (int y = 0; y < qrcode->width; y++) {
+        for (int sy = 0; sy < scale_factor; sy++) {
+            png_bytep row = (png_bytep)malloc(scaled_width * sizeof(png_byte));
+            for (int x = 0; x < qrcode->width; x++) {
+                png_byte pixel = (qrcode->data[y * qrcode->width + x] & 1) ? 0 : 255;
+                for (int sx = 0; sx < scale_factor; sx++) {
+                    row[x * scale_factor + sx] = pixel;
+                }
+            }
+            png_write_row(png, row);
+            free(row);
+        }
+    }
+
+    png_write_end(png, NULL);
+    png_destroy_write_struct(&png, &info);
+    fclose(fp);
+}
+
+// Initialize the server-side crypto key
+void crypto_init(void)
+{
+    FILE *key_file;
+    bool key_initialized = false;
+    if (key_initialized)
+        return;
+    
+    key_file = fopen(MFA_ENC_KEY, "rb");
+    if (key_file) {
+        // Read existing key
+        if (fread(crypto_key, 1, AES_KEY_SIZE, key_file) != AES_KEY_SIZE) {
+            log_string("WARNING: Failed to read crypto key file, generating new one");
+            RAND_bytes(crypto_key, AES_KEY_SIZE);
+        }
+        fclose(key_file);
+    } else {
+        // Generate and save a new key
+        RAND_bytes(crypto_key, AES_KEY_SIZE);
+        key_file = fopen(MFA_ENC_KEY, "wb");
+        if (key_file) {
+            fwrite(crypto_key, 1, AES_KEY_SIZE, key_file);
+            fclose(key_file);
+            
+            // Make the key file readable only by the server user
+            chmod(MFA_ENC_KEY, 0600);
+        } else {
+            log_string("ERROR: Failed to create crypto key file");
+        }
+    }
+    
+    key_initialized = true;
+}
+
+/*
+ * Check if a string appears to be an encrypted key
+ * This version also recognizes strings with linebreaks as encrypted
+ */
+bool is_encrypted_key(const char *str)
+{
+    if (IS_NULLSTR(str))
+        return false;
+    
+    // Base64 encoded data will contain characters from this set: A-Za-z0-9+/=
+    // Plus potential newlines/carriage returns
+    const char *base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+    int valid_chars = 0;
+    int len = strlen(str);
+    
+    for (int i = 0; i < len; i++) {
+        if (strchr(base64_chars, str[i]) != NULL || str[i] == '\r' || str[i] == '\n')
+            valid_chars++;
+    }
+    
+    // Check that at least 90% of characters are valid base64 chars or newlines
+    // and that the length is reasonable for an encrypted key (>16)
+    return (valid_chars > len * 0.9 && len > 16);
+}
+
+/*
+ * Normalize an encrypted string by removing linebreaks
+ * This ensures consistent handling regardless of how it was stored
+ */
+char *normalize_encrypted_key(const char *encrypted)
+{
+    if (IS_NULLSTR(encrypted))
+        return str_dup("");
+        
+    char *result = malloc(strlen(encrypted) + 1);
+    if (!result)
+        return str_dup("");
+        
+    int j = 0;
+    for (int i = 0; encrypted[i]; i++) {
+        if (encrypted[i] != '\r' && encrypted[i] != '\n')
+            result[j++] = encrypted[i];
+    }
+    result[j] = '\0';
+    
+    return result;
+}
+
+/*
+ * Encrypt a string using AES-256-CBC
+ * Creates a string safe for file storage (no linebreaks)
+ */
+char* encrypt_string(const char *plaintext)
+{
+    EVP_CIPHER_CTX *ctx;
+    unsigned char *ciphertext, *output;
+    unsigned char iv[AES_IV_SIZE];
+    unsigned char salt[CRYPTO_SALT_SIZE];
+    int len, ciphertext_len = 0;
+    size_t output_len;
+    
+    if (!key_initialized)
+        crypto_init();
+    
+    if (!plaintext || !*plaintext)
+        return str_dup("");
+    
+    // Generate a random IV and salt for each encryption
+    RAND_bytes(iv, AES_IV_SIZE);
+    RAND_bytes(salt, CRYPTO_SALT_SIZE);
+    
+    // Allocate memory for the ciphertext
+    ciphertext = malloc(strlen(plaintext) + AES_IV_SIZE + CRYPTO_SALT_SIZE + EVP_MAX_BLOCK_LENGTH);
+    if (!ciphertext)
+        return str_dup("");
+    
+    // Create and initialize the context
+    ctx = EVP_CIPHER_CTX_new();
+    
+    // Initialize encryption
+    EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, crypto_key, iv);
+    
+    // Encrypt: First copy the IV and salt directly to the output buffer
+    memcpy(ciphertext, iv, AES_IV_SIZE);
+    memcpy(ciphertext + AES_IV_SIZE, salt, CRYPTO_SALT_SIZE);
+    ciphertext_len = AES_IV_SIZE + CRYPTO_SALT_SIZE;
+    
+    // Perform encryption
+    EVP_EncryptUpdate(ctx, ciphertext + ciphertext_len, &len, 
+                     (unsigned char*)plaintext, strlen(plaintext));
+    ciphertext_len += len;
+    
+    // Finalize encryption
+    EVP_EncryptFinal_ex(ctx, ciphertext + ciphertext_len, &len);
+    ciphertext_len += len;
+    
+    // Clean up
+    EVP_CIPHER_CTX_free(ctx);
+    
+    // Base64 encode the result (IV + salt + ciphertext)
+    output = (unsigned char*)base64_encode(ciphertext, ciphertext_len, &output_len);
+    free(ciphertext);
+    
+    // Clean up any linebreaks in the output to ensure consistent storage
+    char *normalized = normalize_encrypted_key((char*)output);
+    free(output);
+    
+    return normalized;
+}
+
+/*
+ * Decrypt a string using AES-256-CBC
+ * Handles potential linebreaks in input
+ */
+char* decrypt_string(const char *ciphertext)
+{
+    EVP_CIPHER_CTX *ctx;
+    unsigned char *ciphertext_binary, *plaintext;
+    unsigned char iv[AES_IV_SIZE];
+    int len, plaintext_len = 0;
+    size_t ciphertext_len;
+    char *result;
+    
+    if (!key_initialized)
+        crypto_init();
+    
+    if (!ciphertext || !*ciphertext)
+        return str_dup("");
+    
+    // Normalize the input to remove any linebreaks
+    char *normalized_input = normalize_encrypted_key(ciphertext);
+    
+    // Base64 decode
+    ciphertext_binary = base64_decode(normalized_input, strlen(normalized_input), &ciphertext_len);
+    free(normalized_input);
+    
+    if (!ciphertext_binary || ciphertext_len <= AES_IV_SIZE + CRYPTO_SALT_SIZE) {
+        if (ciphertext_binary) free(ciphertext_binary);
+        return str_dup("");
+    }
+    
+    // Extract the IV (first AES_IV_SIZE bytes)
+    memcpy(iv, ciphertext_binary, AES_IV_SIZE);
+    
+    // Allocate memory for the plaintext
+    plaintext = malloc(ciphertext_len);
+    if (!plaintext) {
+        free(ciphertext_binary);
+        return str_dup("");
+    }
+    
+    // Create and initialize the context
+    ctx = EVP_CIPHER_CTX_new();
+    
+    // Initialize decryption
+    EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, crypto_key, iv);
+    
+    // Decrypt (skip the IV and salt in the input)
+    EVP_DecryptUpdate(ctx, plaintext, &len, 
+                     ciphertext_binary + AES_IV_SIZE + CRYPTO_SALT_SIZE, 
+                     ciphertext_len - AES_IV_SIZE - CRYPTO_SALT_SIZE);
+    plaintext_len = len;
+    
+    // Finalize decryption
+    EVP_DecryptFinal_ex(ctx, plaintext + len, &len);
+    plaintext_len += len;
+    
+    // Clean up
+    EVP_CIPHER_CTX_free(ctx);
+    free(ciphertext_binary);
+    
+    // Null-terminate the plaintext
+    plaintext[plaintext_len] = '\0';
+    result = str_dup((char*)plaintext);
+    free(plaintext);
+    
+    return result;
+}
+
+/**
+ * Base64 encode using OpenSSL
+ */
+unsigned char *base64_encode(const unsigned char *src, size_t len, size_t *out_len)
+{
+    EVP_ENCODE_CTX *ctx;
+    unsigned char *out;
+    int outlen, tlen;
+    
+    if (!src || len == 0)
+        return NULL;
+    
+    // Allocate enough space for the encoded data (4/3 ratio plus padding)
+    *out_len = ((len + 2) / 3) * 4 + 1;  // +1 for null terminator
+    out = malloc(*out_len);
+    if (!out)
+        return NULL;
+    
+    ctx = EVP_ENCODE_CTX_new();
+    if (!ctx) {
+        free(out);
+        return NULL;
+    }
+    
+    EVP_EncodeInit(ctx);
+    EVP_EncodeUpdate(ctx, out, &outlen, src, len);
+    EVP_EncodeFinal(ctx, out + outlen, &tlen);
+    EVP_ENCODE_CTX_free(ctx);
+    
+    *out_len = outlen + tlen;
+    out[*out_len] = '\0';  // Null terminate for string usage
+    
+    return out;
+}
+
+/**
+ * Base64 decode using OpenSSL
+ */
+unsigned char *base64_decode(const char *src, size_t len, size_t *out_len)
+{
+    EVP_ENCODE_CTX *ctx;
+    unsigned char *out;
+    int outlen, tlen;
+    
+    if (!src || len == 0)
+        return NULL;
+    
+    // Allocate enough space for the decoded data (3/4 ratio)
+    *out_len = ((len + 3) / 4) * 3 + 1;  // +1 for null terminator
+    out = malloc(*out_len);
+    if (!out)
+        return NULL;
+    
+    ctx = EVP_ENCODE_CTX_new();
+    if (!ctx) {
+        free(out);
+        return NULL;
+    }
+    
+    EVP_DecodeInit(ctx);
+    if (EVP_DecodeUpdate(ctx, out, &outlen, (unsigned char*)src, len) < 0) {
+        EVP_ENCODE_CTX_free(ctx);
+        free(out);
+        return NULL;
+    }
+    
+    if (EVP_DecodeFinal(ctx, out + outlen, &tlen) < 0) {
+        EVP_ENCODE_CTX_free(ctx);
+        free(out);
+        return NULL;
+    }
+    
+    EVP_ENCODE_CTX_free(ctx);
+    
+    *out_len = outlen + tlen;
+    out[*out_len] = '\0';  // Null terminate for string usage
+    
+    return out;
+}
+
+
+/**
+ * Checks if a password matches any staff character password in an account
+ * @param acct The account to check
+ * @param plaintext_password The plaintext password to check against
+ * @param exclude_char Character to exclude from the check (useful when changing a specific character's password)
+ * @return true if the password matches any staff character's password, false otherwise
+ */
+bool password_matches_staff_character(ACCOUNT_DATA *acct, const char *plaintext_password, const char *exclude_name) {
+    ITERATOR it;
+    ACCOUNT_CHARACTER *acct_char;
+    
+    if (!acct || IS_NULLSTR(plaintext_password))
+        return false;
+        
+    iterator_start(&it, acct->characters);
+    while ((acct_char = (ACCOUNT_CHARACTER *)iterator_nextdata(&it))) {
+        // Skip characters that aren't staff
+        if (!acct_char->staff || acct_char->staff_rank < STAFF_IMMORTAL)
+            continue;
+            
+        // Skip the excluded character if provided
+        if (!IS_NULLSTR(exclude_name) && !str_cmp(exclude_name, acct_char->name))
+            continue;
+            
+        // Skip if the character has no password
+        if (IS_NULLSTR(acct_char->pwd))
+            continue;
+            
+        // Check if the plaintext password matches this character's password
+        if (check_encrypted_password(plaintext_password, acct_char->pwd, acct_char->pwd_vers) != PWD_CHECK_FAIL) {
+            iterator_stop(&it);
+            return true;
+        }
+    }
+    iterator_stop(&it);
+    
+    return false;
+}
+
+/**
+ * Checks if a password matches the account's password
+ * @param acct The account to check
+ * @param plaintext_password The plaintext password to check against
+ * @return true if the password matches the account password, false otherwise
+ */
+bool password_matches_account(ACCOUNT_DATA *acct, const char *plaintext_password) {
+    if (!acct || IS_NULLSTR(plaintext_password) || IS_NULLSTR(acct->passwd))
+        return false;
+        
+    return (check_encrypted_password(plaintext_password, acct->passwd, acct->passwd_version) != PWD_CHECK_FAIL);
+}
+
+/**
+ * Comprehensive password check that enforces staff password uniqueness rules
+ * @param acct The account to check
+ * @param plaintext_password The password to validate
+ * @param is_for_character Whether this is for a character password
+ * @param character_name If for a character, which character (can be NULL)
+ * @param is_staff Whether the character is a staff member
+ * @return true if the password is valid according to uniqueness rules, false otherwise
+ */
+bool validate_password_uniqueness(ACCOUNT_DATA *acct, const char *plaintext_password, 
+                                bool is_for_character, const char *character_name, bool is_staff) {
+    // Don't enforce rules if feature is disabled
+    if (!game_settings.require_uniq_pass_staff)
+        return true;
+        
+    // Case 1: Updating account password
+    if (!is_for_character) {
+        // Check against any staff character passwords
+        if (password_matches_staff_character(acct, plaintext_password, NULL)) {
+            return false;  // Account password matches a staff character password
+        }
+    }
+    
+    // Case 2: Setting/updating a staff character password
+    else if (is_for_character && is_staff) {
+        // Check against the account password
+        if (password_matches_account(acct, plaintext_password)) {
+            return false;  // Character password matches account password
+        }
+        
+        // Check against ALL other character passwords (staff or not)
+        ITERATOR it;
+        ACCOUNT_CHARACTER *acct_char;
+        
+        iterator_start(&it, acct->characters);
+        while ((acct_char = (ACCOUNT_CHARACTER *)iterator_nextdata(&it))) {
+            // Skip the current character
+            if (!IS_NULLSTR(character_name) && !str_cmp(character_name, acct_char->name))
+                continue;
+                
+            // Skip if the character has no password
+            if (IS_NULLSTR(acct_char->pwd))
+                continue;
+                
+            // Check if the plaintext password matches this character's password
+            if (check_encrypted_password(plaintext_password, acct_char->pwd, acct_char->pwd_vers) != PWD_CHECK_FAIL) {
+                iterator_stop(&it);
+                return false;  // Character password matches another character's password
+            }
+        }
+        iterator_stop(&it);
+    }
+    
+    // Case 3: Setting/updating a non-staff character password
+    else if (is_for_character && !is_staff) {
+        // Check against any staff character passwords
+        if (password_matches_staff_character(acct, plaintext_password, character_name)) {
+            return false;  // Non-staff character password matches a staff character password
+        }
+    }
+    
+    // Password passes all uniqueness checks
+    return true;
+}
+
+// For game setting lookup
+char *get_game_setting_value(char *setting_name, bool *sensitive)
+{
+    static char value_buffer[MAX_STRING_LENGTH];
+    const struct game_setting_type *setting = NULL;
+    
+    // Find setting in game_settings_table
+    for (int i = 0; game_settings_table[i].name; i++) {
+        if (!str_cmp(setting_name, game_settings_table[i].name)) {
+            setting = &game_settings_table[i];
+            break;
+        }
+    }
+    
+    if (!setting) {
+        *sensitive = false;
+        strcpy(value_buffer, "");
+        return value_buffer;
+    }
+    
+    *sensitive = setting->sensitive;
+    if (sensitive && script_security < 9) {
+        strcpy(value_buffer, "*****");
+        return value_buffer;
+    }
+    
+    // Format the setting value based on type
+    switch (setting->type) {
+        case SETTING_TYPE_BOOL:
+            sprintf(value_buffer, "%s", *(bool*)setting->ptr ? "true" : "false");
+            break;
+        case SETTING_TYPE_INT:
+            sprintf(value_buffer, "%d", *(int*)setting->ptr);
+            break;
+        case SETTING_TYPE_STRING:
+		case SETTING_TYPE_EXTSTR:
+            sprintf(value_buffer, "%s", (char*)setting->ptr);
+            break;
+		case SETTING_TYPE_FLOAT:
+			sprintf(value_buffer, "%.2f", *(float*)setting->ptr);
+			break;
+        default:
+            strcpy(value_buffer, "");
+            break;
+    }
+    
+    return value_buffer;
 }

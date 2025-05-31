@@ -2346,7 +2346,7 @@ SCRIPT_CMD(scriptcmd_echoat)
 		else if( room )
 			room_echo(room, buffer->string);
 		else
-			act(buffer->string, victim, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+			act(buffer->string, victim, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 	}
 	free_buf(buffer);
 }

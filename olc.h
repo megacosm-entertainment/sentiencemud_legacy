@@ -65,6 +65,7 @@
 #define ED_CHANGESET	33
 #define ED_ACCNOTE	34
 #define ED_CHLOG 35
+#define ED_GAMESETTING    36
 
 #define AEDIT( fun )		bool fun( CHAR_DATA *ch, char *argument )
 #define HEDIT( fun )            bool fun( CHAR_DATA *ch, char *argument )

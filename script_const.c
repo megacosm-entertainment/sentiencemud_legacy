@@ -209,6 +209,8 @@ ENT_FIELD entity_game[] = {
 	{"reserved_obj",	ENTITY_GAME_RESERVED_OBJECT,	ENT_RESERVED_OBJECT,"Reserved object registry" },
 	{"reserved_room",	ENTITY_GAME_RESERVED_ROOM,		ENT_RESERVED_ROOM,	"Reserved room registry" },
 	{"time_human",		ENTITY_GAME_TIME_HUMAN,			ENT_STRING,			"Current system time (human readable)"},
+	{"setting",			ENTITY_GAME_SETTINGS,			ENT_GAME_SETTING,	"Game settings"	},
+	{"settings", 		ENTITY_GAME_SETTINGS,			ENT_GAME_SETTING	"Game settings" },
 	{NULL,				0,								ENT_UNKNOWN, 		NULL }
 };
 
@@ -1498,6 +1500,8 @@ struct _entity_type_info entity_type_info[] = {
 	{ ENT_REPUTATION, ENT_REPUTATION, entity_reputation, false, false },
 	{ ENT_REPUTATION_INDEX, ENT_REPUTATION_INDEX, entity_reputation_index, false, false },
 	{ ENT_REPUTATION_RANK, ENT_REPUTATION_RANK, entity_reputation_rank, false, false },
+    { ENT_GAME_SETTING,     ENT_GAME_SETTING,     NULL,                    false },
+
 	{ ENT_UNKNOWN,		ENT_UNKNOWN,		NULL,						false,	false },
 };
 

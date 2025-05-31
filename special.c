@@ -222,8 +222,8 @@ bool spec_patrolman(CHAR_DATA *ch)
 
 	if (((obj = get_eq_char(ch,WEAR_NECK_1)) != NULL && obj->pIndexData == obj_index_whistle) ||
 		((obj = get_eq_char(ch,WEAR_NECK_2)) != NULL && obj->pIndexData == obj_index_whistle)) {
-		act("You blow down hard on $p.",ch, NULL, NULL,obj, NULL, NULL,NULL,TO_CHAR);
-		act("$n blows on $p, ***WHEEEEEEEEEEEET***",ch, NULL, NULL,obj, NULL, NULL,NULL,TO_ROOM);
+		act("You blow down hard on $p.",ch, NULL, NULL,obj, NULL, NULL,NULL,TO_CHAR, NULL, NULL);
+		act("$n blows on $p, ***WHEEEEEEEEEEEET***",ch, NULL, NULL,obj, NULL, NULL,NULL,TO_ROOM, NULL, NULL);
 
 		iterator_start(&it, loaded_chars);
 		while(( vch = (CHAR_DATA *)iterator_nextdata(&it)))
@@ -250,7 +250,7 @@ bool spec_patrolman(CHAR_DATA *ch)
 	}
 
 	if (message != NULL)
-		act(message,ch,NULL,NULL, NULL, NULL, NULL, NULL,TO_ALL);
+		act(message,ch,NULL,NULL, NULL, NULL, NULL, NULL,TO_ALL, NULL, NULL);
 
 	multi_hit(ch,victim,NULL,TYPE_UNDEFINED);
 
@@ -714,7 +714,7 @@ bool spec_fido( CHAR_DATA *ch )
 	if ( !IS_CORPSE(corpse) || CORPSE(corpse)->player )
 	    continue;
 
-	act( "$n savagely devours a corpse.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM );
+	act( "$n savagely devours a corpse.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL );
 	for ( obj = corpse->contains; obj; obj = obj_next )
 	{
 	    obj_next = obj->next_content;
@@ -799,7 +799,7 @@ bool spec_janitor( CHAR_DATA *ch )
 	||   trash->item_type == ITEM_TRASH
 	||   trash->cost < 10 )
 	{
-	    act( "$n picks up some trash.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM );
+	    act( "$n picks up some trash.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL );
 	    obj_from_room( trash );
 	    obj_to_char( trash, ch );
 	    return true;
@@ -942,9 +942,9 @@ bool spec_poison( CHAR_DATA *ch )
     || number_percent() < 80 )
 	return false;
 
-    act( "You bite $N!",  ch, victim, NULL, NULL, NULL, NULL, NULL, TO_CHAR    );
-    act( "$n bites $N!",  ch, victim, NULL, NULL, NULL, NULL, NULL, TO_NOTVICT );
-    act( "$n bites you!", ch, victim, NULL, NULL, NULL, NULL, NULL, TO_VICT    );
+    act( "You bite $N!",  ch, victim, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL    );
+    act( "$n bites $N!",  ch, victim, NULL, NULL, NULL, NULL, NULL, TO_NOTVICT, NULL, NULL );
+    act( "$n bites you!", ch, victim, NULL, NULL, NULL, NULL, NULL, TO_VICT, NULL, NULL    );
     spell_poison( gsk_poison, ch->tot_level, ch, victim,TARGET_CHAR, WEAR_NONE);
     return true;
 }
@@ -972,8 +972,8 @@ bool spec_thief( CHAR_DATA *ch )
 
 	if ( IS_AWAKE(victim) && number_range( 0, ch->tot_level ) == 0 )
 	{
-	    act( "You discover $n's hands in your wallet!", ch, victim, NULL, NULL, NULL, NULL, NULL, TO_VICT );
-	    act( "$N discovers $n's hands in $S wallet!", ch, victim, NULL, NULL, NULL, NULL, NULL, TO_NOTVICT );
+	    act( "You discover $n's hands in your wallet!", ch, victim, NULL, NULL, NULL, NULL, NULL, TO_VICT, NULL, NULL );
+	    act( "$N discovers $n's hands in $S wallet!", ch, victim, NULL, NULL, NULL, NULL, NULL, TO_NOTVICT, NULL, NULL );
 	    return true;
 	}
 	else
@@ -1571,7 +1571,7 @@ bool spec_invasion( CHAR_DATA *ch )
           sprintf(buf, "You hear screams nearby.");
           break;
       }
-      act(buf, ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+      act(buf, ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
     return true;
    }
    return false;

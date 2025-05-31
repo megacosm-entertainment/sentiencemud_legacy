@@ -789,7 +789,13 @@ char *compile_entity(char *str,int type, char **store, int *entity_type)
 				if((ftype = entity_type_lookup(field,script_entity_fields(ent)))) {
 					*p++ = ftype->code;
 					next_ent = ftype->type;
-				} else {
+				                } 
+                else if(ent == ENT_GAME && (!str_cmp(field, "settings") || !str_cmp(field, "setting"))) {
+                    // Special handling for game.settings
+                    *p++ = ENTITY_GAME_SETTINGS;  // Use the ENTITY_GAME_SETTINGS constant
+                    next_ent = ENT_GAME_SETTING;  // Set the next entity type to ENT_GAME_SETTING
+                }
+                else {
 					sprintf(buf,"Line %d: Invalid $() field '%s'.", compile_current_line, field);
 					compile_error_show(buf);
 					return NULL;
@@ -839,6 +845,46 @@ char *compile_entity(char *str,int type, char **store, int *entity_type)
 				if((ftype = entity_type_lookup(field,script_entity_fields(ent)))) {
 					*p++ = ftype->code;
 					next_ent = ftype->type;
+        } else if(ent == ENT_GAME && (!str_cmp(field, "settings") || !str_cmp(field, "setting"))) {
+            // Special handling for game.settings
+            *p++ = ENTITY_GAME_SETTINGS;
+            next_ent = ENT_GAME_SETTING;
+        } else if(ent == ENT_GAME_SETTING) {
+            // Special handling for game settings fields - accept any valid settings name
+            const struct game_setting_type *setting = get_game_setting(field);
+            
+            // If the setting is found, use it directly
+            if(setting) {
+                // Encode field name as a variable
+                if(!compile_variable(field, &p, type, false, true))
+                    return NULL;
+                
+                // Set appropriate type based on the setting
+                switch (setting->type) {
+                    case SETTING_TYPE_BOOL:
+                        *p++ = ENTITY_VAR_BOOLEAN;
+                        next_ent = ENT_BOOLEAN;
+                        break;
+                    case SETTING_TYPE_INT:
+                        *p++ = ENTITY_VAR_NUM;
+                        next_ent = ENT_NUMBER;
+                        break;
+                    case SETTING_TYPE_FLOAT:
+                        *p++ = ENTITY_VAR_NUM;  // Treat floats as numbers
+                        next_ent = ENT_NUMBER;
+                        break;
+                    case SETTING_TYPE_STRING:
+                    case SETTING_TYPE_EXTSTR:
+                    default:
+                        *p++ = ENTITY_VAR_STR;
+                        next_ent = ENT_STRING;
+                        break;
+                }
+            } else {
+                sprintf(buf,"Line %d: Invalid game setting '%s'.", compile_current_line, field);
+                compile_error_show(buf);
+                return NULL;
+            } 
 				} else {
 					sprintf(buf,"Line %d: Invalid $() field '%s'.", compile_current_line, field);
 					compile_error_show(buf);
@@ -899,6 +945,43 @@ char *compile_entity(char *str,int type, char **store, int *entity_type)
 					return NULL;
 				}
 				break;
+            case ENT_GAME_SETTING:
+                // Special handling for dynamic game settings
+                const struct game_setting_type *setting = get_game_setting(field);
+                if (setting) {
+                    // Encode setting name for runtime lookup
+                    if(!compile_variable(field, &p, type, false, true))
+                        return NULL;
+                    
+                    // Set appropriate type based on the setting
+                    switch (setting->type) {
+                        case SETTING_TYPE_BOOL:
+                            *p++ = ENTITY_VAR_BOOLEAN;
+                            ent = ENT_BOOLEAN;
+                            break;
+                        case SETTING_TYPE_INT:
+                            *p++ = ENTITY_VAR_NUM;
+                            ent = ENT_NUMBER;
+                            break;
+                        case SETTING_TYPE_FLOAT:
+                            *p++ = ENTITY_VAR_NUM;  // Treat floats as numbers
+                            ent = ENT_NUMBER;
+                            break;
+                        case SETTING_TYPE_STRING:
+                        case SETTING_TYPE_EXTSTR:
+                        default:
+                            *p++ = ENTITY_VAR_STR;
+                            ent = ENT_STRING;
+                            break;
+                    }
+                } else {
+                    // For unknown settings, default to string
+                    if(!compile_variable(field, &p, type, false, true))
+                        return NULL;
+                    *p++ = ENTITY_VAR_STR;
+                    ent = ENT_STRING;
+                }
+                break;
 			case ENT_OLLIST_MOB:	ent = ENT_MOBILE; break;
 			case ENT_OLLIST_OBJ:	ent = ENT_OBJECT; break;
 			case ENT_OLLIST_TOK:	ent = ENT_TOKEN; break;

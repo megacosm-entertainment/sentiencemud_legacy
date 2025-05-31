@@ -1,24 +1,16 @@
 CC      = gcc
-PROF    = -Wall -O -g -pg -ggdb -g 
+PROF    = -Wall -O -g -pg -ggdb
 OBJDIR	= obj
-VPATH   = .:obj
-LIBS = -lpthread -lz -lm -lrt -lssl -lcrypto -ldl -lcrypt -lquickmail -lcotp -lqrencode -lpng
-C_FLAGS = $(PROF) -fcommon -DMALLOC_STDLIB -fstack-protector  -m64 -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -fno-strict-aliasing -fwrapv -fPIC -fabi-version=2 -fno-omit-frame-pointer -DVERSION=\"$(GIT_VERSION)\" -DBUILD_DATE=\"$(CUR_BUILD_DATE)\" -DBUILD_NUMBER=\"$(CUR_BUILD_NUMBER)\" -DCOMMIT=\"$(GIT_URL)\"
-L_FLAGS =  $(PROF) $(LIBS)
-EXE	= sent
-BUILD_NUMBER_FILE = build.txt
+LIBS = -lpthread -lz -lm -lrt -lssl -lcrypto -ldl -lcrypt -lquickmail  -lcotp -lqrencode -lpng
+
 GIT_VERSION := "$(shell git describe --dirty --always --tags)"
 CUR_BUILD_DATE := "$(shell sh date.sh)"
-CUR_BUILD_NUMBER := "$(shell cat $(BUILD_NUMBER_FILE))"
 GIT_URL := "$(shell sh giturl.sh)"
 
-VERSION1 = 20061008
-PATH1 = ../20061008
-VERSION2 = vizzwild
-PATH2 = ../vizzwild
+C_FLAGS = $(PROF) -fcommon -DMALLOC_STDLIB -fstack-protector  -m64 -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -fno-strict-aliasing -fwrapv -fPIC -fabi-version=2 -fno-omit-frame-pointer -DVERSION=\"$(GIT_VERSION)\" -DBUILD_DATE=\"$(CUR_BUILD_DATE)\" -DCOMMIT=\"$(GIT_URL)\" -MMD -MP
+L_FLAGS =  $(PROF) $(LIBS)
 
-DIFF_TXT = diff_$(VERSION1)_$(VERSION2).txt
-DIFF_C = $(patsubst $(PATH1)/%.c,%_c.diff,$(wildcard $(PATH1)/*.c)) $(patsubst $(PATH1)/%.h,%_h.diff,$(wildcard $(PATH1)/*.h))
+EXE	= sent
 
 C_FILES = \
 	account/otp.c \
@@ -38,19 +30,73 @@ C_FILES = \
 	bit.c \
 	blueprint.c \
 	boat.c \
+	chat_rooms.c \
 	church.c \
-	cmdedit.c \
 	comm.c \
 	const.c \
 	db.c \
 	db2.c \
 	drunk.c \
 	dungeon.c \
+	editors/areas/aedit_common.c \
+	editors/areas/aedit.c \
+	editors/blueprints/bp_common.c \
+    editors/blueprints/bpedit.c \
+    editors/blueprints/bsedit.c \
+	editors/classes/clsedit_common.c \
+	editors/classes/clsedit.c \
+	editors/commands/cmdedit_common.c \
+    editors/commands/cmdedit.c \
+	editors/corpses/corpsedit_common.c \
+	editors/corpses/corpsedit.c \
+	editors/dialogue/dlgedit_common.c \
+	editors/dialogue/dlgedit.c \
+	editors/dungeons/dngedit_common.c \
+    editors/dungeons/dngedit.c \
+	editors/game_settings/gameedit_common.c \
+    editors/game_settings/gameedit.c \
+	editors/help/hedit_common.c \
+    editors/help/hedit.c \
+	editors/liquids/liqedit_common.c \
+	editors/liquids/liqedit.c \
+	editors/materials/matedit_common.c \
+	editors/materials/matedit.c \
+	editors/mobiles/medit_common.c \
+    editors/mobiles/medit.c \
+	editors/objects/oedit_common.c \
+    editors/objects/oedit.c \
+	editors/projects/pedit_common.c \
+    editors/projects/pedit.c \
+	editors/quests/qedit_common.c \
+	editors/quests/qedit.c \
+	editors/races/raceedit_common.c \
+	editors/races/raceedit.c \
+	editors/random_strings/rsgedit_common.c \
+    editors/random_strings/rsgedit.c \
+	editors/reserved/resedit_common.c \
+    editors/reserved/reseedit.c \
+	editors/rooms/redit_common.c \
+    editors/rooms/redit.c \
+    editors/scripting/olc_mpcode.c \
+	editors/sectors/sectoredit_common.c \
+	editors/sectors/sectoredit.c \
+	editors/ships/shedit_common.c \
+    editors/ships/shedit.c \
+	editors/skills/sgedit.c \
+	editors/skills/skedit_common.c \
+	editors/skills/skedit.c \
+	editors/socials/socedit_common.c \
+    editors/socials/socialedit.c \
+	editors/tokens/tedit_common.c \
+    editors/tokens/tedit.c \
+	editors/wilderness/wedit_common.c \
+    editors/wilderness/vledit.c \
+    editors/wilderness/wedit.c \
+	editors/olc_common.c \
 	effects.c \
 	events.c \
 	fight.c \
 	fight2.c \
-	gameedit.c \
 	gq.c \
 	handler.c \
 	help.c \
@@ -122,12 +168,12 @@ C_FILES = \
 	sectors.c \
 	shoot.c \
 	skills.c \
-	social.c \
+	socials.c \
 	special.c \
 	staff.c \
 	stats.c \
-	string.c \
 	storage.c \
+	string.c \
 	tables.c \
 	tls.c \
 	treasuremap.c \
@@ -135,177 +181,39 @@ C_FILES = \
 	weather.c \
 	wilds.c \
 
-O_FILES = \
-	$(OBJDIR)/account/otp.o \
-	$(OBJDIR)/account/account_notes.o \
-	$(OBJDIR)/act_comm.o \
-	$(OBJDIR)/act_enter.o \
-	$(OBJDIR)/act_info.o \
-	$(OBJDIR)/act_info2.o \
-	$(OBJDIR)/act_move.o \
-	$(OBJDIR)/act_obj.o \
-	$(OBJDIR)/act_obj2.o \
-	$(OBJDIR)/act_wiz.o \
-	$(OBJDIR)/alias.o \
-	$(OBJDIR)/auction.o \
-	$(OBJDIR)/autowar.o \
-	$(OBJDIR)/ban.o \
-	$(OBJDIR)/bit.o \
-	$(OBJDIR)/blueprint.o \
-	$(OBJDIR)/boat.o \
-	$(OBJDIR)/church.o \
-	$(OBJDIR)/cmdedit.o \
-	$(OBJDIR)/comm.o \
-	$(OBJDIR)/const.o \
-	$(OBJDIR)/db.o \
-	$(OBJDIR)/db2.o \
-	$(OBJDIR)/drunk.o \
-	$(OBJDIR)/dungeon.o \
-	$(OBJDIR)/effects.o \
-	$(OBJDIR)/events.o \
-	$(OBJDIR)/fight.o \
-	$(OBJDIR)/fight2.o \
-	$(OBJDIR)/gameedit.o \
-	$(OBJDIR)/gq.o \
-	$(OBJDIR)/handler.o \
-	$(OBJDIR)/help.o \
-	$(OBJDIR)/house.o \
-	$(OBJDIR)/html.o \
-	$(OBJDIR)/hunt.o \
-	$(OBJDIR)/interp.o \
-	$(OBJDIR)/invasion.o \
-	$(OBJDIR)/item_types.o \
-	$(OBJDIR)/lookup.o \
-	$(OBJDIR)/magic.o \
-	$(OBJDIR)/magic2.o \
-	$(OBJDIR)/magic_acid.o \
-	$(OBJDIR)/magic_air.o \
-	$(OBJDIR)/magic_astral.o \
-	$(OBJDIR)/magic_blood.o \
-	$(OBJDIR)/magic_body.o \
-	$(OBJDIR)/magic_chaos.o \
-	$(OBJDIR)/magic_cold.o \
-	$(OBJDIR)/magic_cosmic.o \
-	$(OBJDIR)/magic_dark.o \
-	$(OBJDIR)/magic_death.o \
-	$(OBJDIR)/magic_earth.o \
-	$(OBJDIR)/magic_energy.o \
-	$(OBJDIR)/magic_fire.o \
-	$(OBJDIR)/magic_holy.o \
-	$(OBJDIR)/magic_law.o \
-	$(OBJDIR)/magic_light.o \
-	$(OBJDIR)/magic_mana.o \
-	$(OBJDIR)/magic_metal.o \
-	$(OBJDIR)/magic_mind.o \
-	$(OBJDIR)/magic_nature.o \
-	$(OBJDIR)/magic_shock.o \
-	$(OBJDIR)/magic_soul.o \
-	$(OBJDIR)/magic_sound.o \
-	$(OBJDIR)/magic_toxin.o \
-	$(OBJDIR)/magic_water.o \
-	$(OBJDIR)/mail.o \
-	$(OBJDIR)/mccp.o \
-	$(OBJDIR)/mem.o \
-	$(OBJDIR)/missions.o \
-	$(OBJDIR)/mount.o \
-	$(OBJDIR)/music.o \
-	$(OBJDIR)/nanny.o \
-	$(OBJDIR)/note.o \
-	$(OBJDIR)/olc.o \
-	$(OBJDIR)/olc_act.o \
-	$(OBJDIR)/olc_act2.o \
-	$(OBJDIR)/olc_mpcode.o \
-	$(OBJDIR)/olc_save.o \
-	$(OBJDIR)/project.o \
-	$(OBJDIR)/protocol.o \
-	$(OBJDIR)/quest.o \
-	$(OBJDIR)/race.o \
-	$(OBJDIR)/reputation.o \
-	$(OBJDIR)/save.o \
-	$(OBJDIR)/scan.o \
-	$(OBJDIR)/script_commands.o \
-	$(OBJDIR)/script_comp.o \
-	$(OBJDIR)/script_const.o \
-	$(OBJDIR)/script_expand.o \
-	$(OBJDIR)/script_ifc.o \
-	$(OBJDIR)/script_mpcmds.o \
-	$(OBJDIR)/script_opcmds.o \
-	$(OBJDIR)/script_rpcmds.o \
-	$(OBJDIR)/script_tpcmds.o \
-	$(OBJDIR)/script_vars.o \
-	$(OBJDIR)/scripts.o \
-	$(OBJDIR)/sectors.o \
-	$(OBJDIR)/shoot.o \
-	$(OBJDIR)/skills.o \
-	$(OBJDIR)/social.o \
-	$(OBJDIR)/special.o \
-	$(OBJDIR)/staff.o \
-	$(OBJDIR)/stats.o \
-	$(OBJDIR)/storage.o \
-	$(OBJDIR)/string.o \
-	$(OBJDIR)/tables.o \
-	$(OBJDIR)/tls.o \
-	$(OBJDIR)/treasuremap.o \
-	$(OBJDIR)/update.o \
-	$(OBJDIR)/weather.o \
-	$(OBJDIR)/wilds.o \
+O_FILES = $(patsubst %.c,$(OBJDIR)/%.o,$(C_FILES))
 
+DEP_FILES = $(O_FILES:.o=.d)
+all: $(EXE)
 
-ifdef IMC
+OBJ_DIRS_NEEDED := $(sort $(OBJDIR) $(patsubst %/,%,$(dir $(O_FILES))))
+objdir:
+	@echo "Creating object directories..."
+	@mkdir -p $(OBJ_DIRS_NEEDED)
+	@-chmod 775 $(OBJ_DIRS_NEEDED)
 
-O_FILES := $(OBJDIR)/imc.o $(OBJDIR)/sha256.o $(O_FILES)
+$(EXE): objdir $(O_FILES)
+	@echo "Linking $(EXE)..."
+	@rm -f $(EXE)
+	@$(CC) -o $(EXE) $(O_FILES) $(L_FLAGS)
+	@-chmod 775 $(EXE)
+	@echo "Build complete!"
 
-C_FLAGS := $(C_FLAGS) -DIMC -DIMCROM
+$(OBJDIR)/%.o: %.c
+	@echo "Building $<..."
+	@mkdir -p $(dir $@)
+	@$(CC) -c $(C_FLAGS) $< -o $@
 
-endif
-
-
-	  
-all: objdir $(O_FILES) $(EXE)
+-include $(DEP_FILES)
 
 install: all
-	-cp -f *.c ~/alpha/src/
-	-cp -f *.h ~/alpha/src/
-	-cp -f $(EXE) ~/alpha/src/
-
-
-objdir:
-	-mkdir obj
-	-mkdir obj/account
-	-chmod 775 obj obj/account
-
-$(EXE): $(O_FILES) $(BUILD_NUMBER_FILE)
-	rm -f $(EXE)
-	$(CC) $(BUILD_NUMBER_LFLAGS) -o $(EXE) $(O_FILES) $(L_FLAGS)
-	-chmod 775 $(EXE)
-
-$(OBJDIR)/%.o:	%.c
-	@echo Building $<...
-	@$(CC) -c $(C_FLAGS) $< -o $(OBJDIR)/$(basename $<).o
-
-%_c.diff:	$(PATH1)/%.c
-	-diff -wbBdp $< $(patsubst $(PATH1)/%,$(PATH2)/%,$<) >> $(DIFF_TXT)
-
-%_h.diff:	$(PATH1)/%.h
-	-diff -wbBdp $< $(patsubst $(PATH1)/%,$(PATH2)/%,$<) >> $(DIFF_TXT)
-
--include .depend
+	@echo "Installing $(EXE) to ../"
+	-cp -f $(EXE) ../
+	@echo "Installation complete."
 
 clean:
-	rm -f $(OBJDIR)/*.o
-	rm -rf $(OBJDIR)
-	rm -f sent
+	@echo "Cleaning up..."
+	@-rm -f $(O_FILES) $(DEP_FILES) $(EXE)
+	@-rm -rf $(OBJDIR)
 
-depend:
-	$(CC) -E -MM $(C_FILES) $(C_FLAGS) -I. > .depend
-	sed -e "/.*:/s//obj\/&/g" <.depend > .depend2
-	sed -e "/#.*/s///g" <.depend2 > .depend
-	rm -f .depend2
-
-clear_diff:
-	-rm -f $(DIFF_TXT)
-
-diff:	clear_diff $(DIFF_C)
-
--include .depend
-include buildnumber.mak
+.PHONY: all install objdir clean

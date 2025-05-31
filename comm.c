@@ -869,10 +869,9 @@ void game_loop(int control_telnet, int control_tls)
         for (d = descriptor_list; d; d = d->next)
         {
             FD_SET(d->descriptor, &in_set);
-            FD_SET(d->descriptor, &exc_set);
             FD_SET(d->descriptor, &out_set);
-        
-            
+	        FD_SET(d->descriptor, &exc_set);
+	
             maxdesc = UMAX(maxdesc, d->descriptor);
         }
 
@@ -1067,10 +1066,6 @@ void game_loop(int control_telnet, int control_tls)
                 d->incomm[0] = '\0';
             }
         }
-
-#ifdef IMC
-        imc_loop();
-#endif
 
         /*
          * Autonomous game motion.
@@ -1400,7 +1395,7 @@ void close_socket(DESCRIPTOR_DATA *dclose)
 			if (dclose->connected == CON_PLAYING && !merc_down)
 			{
 	    		if (ch->invis_level < STAFF_IMMORTAL)
-					act("$n has lost $s link.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+					act("$n has lost $s link.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 				wiznet("$N has lost $S link.",ch,NULL,WIZ_LINKS,0,0);
 
 	    		ch->desc = NULL;
@@ -1439,6 +1434,7 @@ void close_socket(DESCRIPTOR_DATA *dclose)
 
     ProtocolDestroy(dclose->pProtocol);
 
+    ProtocolDestroy(dclose->pProtocol);
     // Properly shut down TLS/SSL connection with complete error handling
     if (dclose->ssl != NULL) {
         int ret, err;
@@ -2579,7 +2575,7 @@ CHAR_DATA *find_existing_player(char *name)
 bool check_reconnect(DESCRIPTOR_DATA *d, char *name, bool fConn)
 {
     CHAR_DATA *ch;
-    char buf[100];
+    ACCOUNT_CHARACTER *acct_char = NULL;
     bool found = false;
     ITERATOR cit;
 
@@ -2621,54 +2617,62 @@ bool check_reconnect(DESCRIPTOR_DATA *d, char *name, bool fConn)
                 d->reconnecting = true;
                 found = true;  // Mark as found so iterator_stop works properly
                 
+                // Find the account character entry for the character
+                if (d->account) {
+                    ITERATOR it;
+                    iterator_start(&it, d->account->characters);
+                    while ((acct_char = (ACCOUNT_CHARACTER *)iterator_nextdata(&it))) {
+                        if (!str_cmp(acct_char->name, ch->name)) {
+                            break;
+                        }
+                    }
+                    iterator_stop(&it);
+                }
+
                 // Handle special authentication cases
-				if (!DEV_SKIP_MFA){
-                if (IS_IMMORTAL(ch) && game_settings.require_2fa_staff) {
-                    // Staff character with MFA requirements
-                    if ((!IS_NULLSTR(ch->pcdata->mfa_key) && ch->pcdata->mfa_enabled) ||
-                        (!IS_NULLSTR(d->account->mfa_key) && d->account->mfa_enabled)) {
-                        
+                if (!DEV_SKIP_MFA) {
+                    bool has_mfa = acct_char ? acct_char->mfa_key != NULL : false;
+                    
+                    if (IS_IMMORTAL(ch) && game_settings.require_2fa_staff) {
                         // If character has MFA, verify that
-                        if (!IS_NULLSTR(ch->pcdata->mfa_key) && ch->pcdata->mfa_enabled) {
+                        if (has_mfa) {
                             write_to_buffer(d, "\n\rReconnecting - This character has MFA enabled.\n\r", 0);
                             ProtocolNoEcho(d, true);
                             d->connected = CON_GET_CHAR_MFA;
-                            break;  // Exit the loop but maintain iterator
+                            break;
                         } 
                         // Otherwise, verify account MFA
-                        else if (!IS_NULLSTR(d->account->mfa_key) && d->account->mfa_enabled) {
+                        else if (!IS_NULLSTR(d->account->mfa_key)) {
                             write_to_buffer(d, "\n\rReconnecting - Staff account MFA verification required.\n\r", 0);
- 
                             ProtocolNoEcho(d, true);
                             d->connected = CON_GET_ACCOUNT_MFA_FOR_CHAR;
-                            break;  // Exit the loop but maintain iterator
+                            break;
                         }
                     }
+                    // Regular character with MFA
+                    else if (has_mfa) {
+                        write_to_buffer(d, "\n\rReconnecting - This character has MFA enabled.\n\r", 0);
+                        ProtocolNoEcho(d, true);
+                        d->connected = CON_GET_CHAR_MFA;
+                        break;
+                    }
                 }
-                // Regular character with MFA
-                else if (!IS_NULLSTR(ch->pcdata->mfa_key) && ch->pcdata->mfa_enabled) {
-                    write_to_buffer(d, "\n\rReconnecting - This character has MFA enabled.\n\r", 0);
-
-                    ProtocolNoEcho(d, true);
-                    d->connected = CON_GET_CHAR_MFA;
-                    break;  // Exit the loop but maintain iterator
+                
+                // Check for character password - use account_character data
+                if (!DEV_SKIP_PASSWORD) {
+                    bool has_password = acct_char ? !IS_NULLSTR(acct_char->pwd) : false;
+                    
+                    if (has_password) {
+                        write_to_buffer(d, "\n\rReconnecting: This character requires password verification.\n\r", 0);
+                        ProtocolNoEcho(d, true);
+                        d->connected = CON_GET_CHAR_PASSWORD;
+                        break;
+                    }
                 }
-			}
-
-                // Character with password override
-				if (!DEV_SKIP_PASSWORD){
-                if (ch->pcdata->account_pwd_override) {
-                    write_to_buffer(d, "\n\rReconnecting: This character requires password verification.\n\r", 0);
-
-                    ProtocolNoEcho(d, true);
-                    d->connected = CON_GET_CHAR_PASSWORD;
-                    break;  // Exit the loop but maintain iterator
-                }
-			}
                 
                 // Normal reconnect process - no special auth needed
                 reconnect_char(d);
-                break;  // Exit the loop but maintain iterator
+                break;
             }
         }
     }
@@ -2708,27 +2712,6 @@ if (ch && ch->desc) {
     }
 }
 
-    // Fix inventory relationships
-    if (ch->carrying == NULL && ch->lcarrying != NULL) {
-        log_string("Reconnect: Rebuilding inventory from lcarrying");
-        for (link = ch->lcarrying->head; link; link = link->next) {
-            obj = (OBJ_DATA *)link->data;
-            if (obj && obj->carried_by == ch) {
-                obj->next_content = ch->carrying;
-                ch->carrying = obj;
-                ch->carry_number++;
-                ch->carry_weight += get_obj_weight(obj);
-            }
-        }
-    }
-
-    // Fix worn equipment relationships
-    if (ch->lworn != NULL) {
-        for (link = ch->lworn->head; link; link = link->next) {
-            obj = (OBJ_DATA *)link->data;
-        }
-    }
-
     // Fix token relationships
     if (ch->tokens == NULL && ch->ltokens != NULL) {
         for (link = ch->ltokens->head; link; link = link->next) {
@@ -2746,7 +2729,7 @@ if (ch && ch->desc) {
     
     // Send reconnection message
     send_to_char("Reconnecting. Type replay to see missed tells.\n\r", ch);
-    act("$n has reconnected.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+    act("$n has reconnected.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
     
     // Log the reconnection
     sprintf(buf, "%s@%s reconnected.", ch->name, d->host);
@@ -2823,7 +2806,7 @@ void stop_idling(CHAR_DATA *ch)
 	}
 
     ch->was_in_room = NULL;
-    act("$n has returned from the void.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+    act("$n has returned from the void.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 }
 
 
@@ -2857,215 +2840,6 @@ void send_to_char( const char *txt, CHAR_DATA *ch )
 	}
     return;
 }
-
-#if 0
-void send_to_char(const char *txt, CHAR_DATA *ch)
-{
-    const	char 	*point;
-    		char 	*point2;
-    		char 	buf[ MAX_STRING_LENGTH*4 ];
-		int	skip = 0;
-
-    buf[0] = '\0';
-    point2 = buf;
-	bool mxp = isMXP(ch->desc);
-
-    if (!IS_NPC(ch) && IS_STONED(ch))
-    {
-	char colchar;
-	int col;
-	col = number_range(0, 12);
-
-	*point2 = '{';
-	point2++;
-	switch(col) {
-	    case 0 :
-		colchar = 'D';
-		break;
-	    case 1 :
-		colchar = 'R';
-		break;
-	    case 2 :
-		colchar = 'W';
-		break;
-	    case 3 :
-		colchar = 'G';
-		break;
-	    case 4 :
-		colchar = 'Y';
-		break;
-	    case 5 :
-		colchar = 'C';
-		break;
-	    case 6 :
-		colchar = 'B';
-		break;
-	    case 7 :
-		colchar = 'w';
-		break;
-	    case 8 :
-		colchar = 'y';
-		break;
-	    case 9 :
-		colchar = 'g';
-		break;
-	    case 10 :
-		colchar = 'b';
-		break;
-	    case 11 :
-		colchar = 'y';
-		break;
-	    case 12 :
-		colchar = 'M';
-		break;
-	    default:
-		colchar = 'W';
-		break;
-	}
-	*point2 = colchar;
-	point2++;
-	*point2 = '\0';
-    }
-    
-
-    if(txt && ch->desc)
-	{
-		bool capitalize = false;
-	    if(IS_SET(ch->act[0], PLR_COLOUR))
-	    {
-			for(point = txt ; *point ; point++)
-	        {
-			    if(*point == '{')
-			    {
-					point++;
-
-					if( *point == '+' )
-						capitalize = true;
-					else {
-						skip = colour(*point, ch, point2);
-						point2 += skip;
-					}
-					continue;
-			    }
-
-			    if( capitalize && ISALPHA(*point) )
-				{
-			    	*point2 = UPPER(*point);	// Make uppercase
-			    	capitalize = false;
-				}
-				// Handle MXP filtering
-				else if(mxp)
-				{
-					switch(*point)
-					{
-					case MXP_AMPERSAND:
-						*point2 = '&';
-						break;
-					case MXP_BEGIN_TAG:
-						*point2 = '<';
-						break;
-					case MXP_END_TAG:
-						*point2 = '>';
-						break;
-					case '&':
-						*point2++ = '&';
-						*point2++ = 'a';
-						*point2++ = 'm';
-						*point2++ = 'p';
-						*point2 = ';';
-						break;
-					case '<':
-						*point2++ = '&';
-						*point2++ = 'l';
-						*point2++ = 't';
-						*point2 = ';';
-						break;
-					case '>':
-						*point2++ = '&';
-						*point2++ = 'g';
-						*point2++ = 't';
-						*point2 = ';';
-						break;
-					****
-					default:
-						*point2= *point;
-						break;
-					}
-				}
-				else
-					*point2 = *point;
-			    *++point2 = '\0';
-			}
-			*point2 = '\0';
-        	write_to_buffer(ch->desc, buf, point2 - buf);
-	    }
-	    else
-	    {
-			for(point = txt ; *point ; point++)
-				{
-				if(*point == '{')
-				{
-					point++;
-					if( *point == '+' )
-						capitalize = true;
-
-					continue;
-				}
-			    if( capitalize && ISALPHA(*point) )
-				{
-			    	*point2 = UPPER(*point);	// Make uppercase
-			    	capitalize = false;
-				}
-				// Handle MXP filtering
-				else if(mxp)
-				{
-					switch(*point)
-					{
-					case MXP_AMPERSAND:
-						*point2 = '&';
-						break;
-					case MXP_BEGIN_TAG:
-						*point2 = '<';
-						break;
-					case MXP_END_TAG:
-						*point2 = '>';
-						break;
-					case '&':
-						*point2++ = '&';
-						*point2++ = 'a';
-						*point2++ = 'm';
-						*point2++ = 'p';
-						*point2 = ';';
-						break;
-					case '<':
-						*point2++ = '&';
-						*point2++ = 'l';
-						*point2++ = 't';
-						*point2 = ';';
-						break;
-					case '>':
-						*point2++ = '&';
-						*point2++ = 'g';
-						*point2++ = 't';
-						*point2 = ';';
-						break;
-					*****
-					default:
-						*point2= *point;
-						break;
-					}
-				}
-				else
-					*point2 = *point;
-				*++point2 = '\0';
-			}
-			*point2 = '\0';
-        	write_to_buffer(ch->desc, buf, point2 - buf);
-	    }
-	}
-    return;
-}
-#endif
 
 /*
  * Send a page to one char.
@@ -3286,25 +3060,17 @@ void show_string(struct descriptor_data *d, char *input)
 
 void act_new(char *format, CHAR_DATA *ch,
 		CHAR_DATA *vch, CHAR_DATA *vch2,
+        const char *ch_verb, const char *vch_verb,
 		OBJ_DATA *obj1, OBJ_DATA *obj2,
 		void *arg1, void *arg2,
 		int type, int min_pos, CHAR_TEST char_func)
 {
-    static char * const he_she  [] = { "it",  "he",  "she" };
-    static char * const him_her [] = { "it",  "him", "her" };
-    static char * const his_her [] = { "its", "his", "her" };
 
 
     CHAR_DATA 		*to;
-//    CHAR_DATA 		*vch = (CHAR_DATA *) arg2;
-//    CHAR_DATA 		*vch2 = (CHAR_DATA *) arg1;
-//    OBJ_DATA 		*obj1 = (OBJ_DATA  *) arg1;
-//    OBJ_DATA 		*obj2 = (OBJ_DATA  *) arg2;
     const 	char 	*str;
-    char 		*i = NULL;
+    const char 		*i = NULL;
     char 		*point;
-    //char 		*pbuff;
-//    char 		buffer[ MAX_STRING_LENGTH*2 ];
     char 		buf[ MAX_STRING_LENGTH   ];
     char 		fname[ MAX_INPUT_LENGTH  ];
     bool		see_all;
@@ -3393,10 +3159,10 @@ void act_new(char *format, CHAR_DATA *ch,
                           i = " <@@@> ";
                           break;
                 /* Thx alex for 't' idea */
-                case 't': if (arg1) i = (char *) arg1;
+                case 't': if (arg1) i = (const char *) arg1;
                           else bug("Act: bad code $t for 'arg1'",0);
                           break;
-                case 'T': if (arg2) i = (char *) arg2;
+                case 'T': if (arg2) i = (const char *) arg2;
                           else bug("Act: bad code $T for 'arg2'",0);
                           break;
                 case 'v': if (vch2&&to) {
@@ -3416,31 +3182,53 @@ void act_new(char *format, CHAR_DATA *ch,
                           else bug("Act: bad code $n for 'ch' or 'to'",0);
                           break;
                 case 'N': if (vch&&to) {
-                          if (see_all || (IS_IMMORTAL(to) && !IS_NPC(vch)))
-							i = vch->name;
+                          if (see_all || (to->tot_level >= 150 && !IS_NPC(vch)))
+                            i = vch->name;
                           else
-							i = pers(vch,  to );
+                            i = pers(vch,  to );
                           }
-                          else bug("Act: bad code $N for 'ch' or 'to'",0);
+                          else bug("Act: bad code $N for 'ch' or 'to'",0); 
                           break;
-                case 'e': if (ch) i = he_she  [URANGE(0, ch  ->sex, 2)];
+                case 'e': if (ch) i = get_he_she(ch);
                           else bug("Act: bad code $e for 'ch'",0);
                           break;
-                case 'E': if (vch) i = he_she  [URANGE(0, vch ->sex, 2)];
-                          else bug("Act: bad code $E for 'ch'",0);
+                case 'E': if (vch) i = get_he_she(vch); 
+                          else bug("Act: bad code $E for 'vch'",0);
                           break;
-                case 'm': if (ch) i = him_her [URANGE(0, ch  ->sex, 2)];
+                case 'm': if (ch) i = get_him_her(ch); 
                           else bug("Act: bad code $m for 'ch'",0);
                           break;
-                case 'M': if (vch) i = him_her [URANGE(0, vch ->sex, 2)];
-                          else bug("Act: bad code $M for 'ch'",0);
+                case 'M': if (vch) i = get_him_her(vch);
+                          else bug("Act: bad code $M for 'vch'",0); 
                           break;
-                case 's': if (ch) i = his_her [URANGE(0, ch  ->sex, 2)];
+                case 's': if (ch) i = get_his_her(ch); 
                           else bug("Act: bad code $s for 'ch'",0);
                           break;
-                case 'S': if (vch) i = his_her [URANGE(0, vch ->sex, 2)];
-                          else bug("Act: bad code $S for 'ch'",0);
+                case 'S': if (vch) i = get_his_her(vch); 
+                          else bug("Act: bad code $S for 'vch'",0); 
                           break;
+                case 'f': // Reflexive: himself/herself
+                    if (ch) i = get_himself_herself(ch);
+                    else bug("Act: bad code $f for 'ch'", 0);
+                    break;
+                case 'F': // Reflexive: himself/herself for vch
+                    if (vch) i = get_himself_herself(vch);
+                    else bug("Act: bad code $F for 'vch'", 0);
+                    break;
+                case 'q': // Possessive Pronoun: his/hers
+                    if (ch) i = get_his_hers(ch);
+                    else bug("Act: bad code $q for 'ch'", 0);
+                    break;
+                case 'Q': // Possessive Pronoun: his/hers for vch
+                    if (vch) i = get_his_hers(vch);
+                    else bug("Act: bad code $Q for 'vch'", 0);
+                    break;
+                case 'z': if (ch) i = ch_verb;
+                            else bug("Act: bad code $z for 'ch'",0);
+                            break;
+                case 'Z': if (vch) i = vch_verb; 
+                        else bug("Act: bad code $Z for 'vch'",0);
+                        break;
 
                 case 'p': if (to&&obj1) i = (see_all || can_see_obj(to, obj1))
                             ? obj1->short_descr
@@ -3473,19 +3261,22 @@ void act_new(char *format, CHAR_DATA *ch,
 	            while ((*point = *i) != '\0')
 	                ++point, ++i;
 			} else {
-				strcpy(point, "<NULL>");
-				point += 6;
+                if (point + 7 < buf + MAX_STRING_LENGTH) {
+                    *point++ = '<'; *point++ = 'N'; *point++ = 'U'; *point++ = 'L'; *point++ = 'L'; *point++ = '>';
+                } else {
+                    
+                }
 			}
         }
 
         *point++ = '\n';
         *point++ = '\r';
 	*point   = '\0';
-        /*buf[0]   = UPPER(buf[0]);*/
-        //sprintf(buf, "%s", upper_first(&buf[0]));
+
+    upper_first(buf);
+
 	if (to->desc != NULL)
-	{//   pbuff = buffer;
-	    //colourconv(pbuff, buf, to);
+	{
             write_to_buffer(to->desc, buf, 0);
 	}
 
@@ -3501,7 +3292,7 @@ void act_new(char *format, CHAR_DATA *ch,
 
 	 point   = buf;
 	 str     = format;
-	 while(*str != '\0')
+     while(*str != '\0' && (point - buf < MAX_STRING_LENGTH -1)) 
 	 {
 	     *point++ = *str++;
 	 }
@@ -3513,7 +3304,7 @@ void act_new(char *format, CHAR_DATA *ch,
 	    p_act_trigger(buf, NULL, obj, NULL, ch, vch, vch2, obj1, obj2, TRIG_ACT,0,0,0,0,0);
 	}
 
-	for(tch = ch; tch; tch = tch_next)
+    for(tch = ch->in_room->people; tch; tch = tch_next) 
 	{
 	    tch_next = tch->next_in_room;
 
@@ -3528,201 +3319,6 @@ void act_new(char *format, CHAR_DATA *ch,
     }
 }
 
-/*
-int colour(char type, CHAR_DATA *ch, char *string)
-{
-	char code[20];
-	char *p = '\0';
-
-	if (!ch) {
-		log_string("Char was null in colour.");
-		return 0;
-	}
-
-	if(IS_NPC(ch) && !IS_SWITCHED(ch)) return(0);
-
-	switch(type) {
-	default: strcpy(code, CLEAR); break;
-	case 'x': strcpy(code, CLEAR); break;
-	case 'b': strcpy(code, C_BLUE); break;
-	case 'c': strcpy(code, C_CYAN); break;
-	case 'g': strcpy(code, C_GREEN); break;
-	case 'm': strcpy(code, C_MAGENTA); break;
-	case 'r': strcpy(code, C_RED); break;
-	case 'w': strcpy(code, C_WHITE); break;
-	case 'y': strcpy(code, C_YELLOW); break;
-	case 'B': strcpy(code, C_B_BLUE); break;
-	case 'C': strcpy(code, C_B_CYAN); break;
-	case 'G': strcpy(code, C_B_GREEN); break;
-	case 'M': strcpy(code, C_B_MAGENTA); break;
-	case 'R': strcpy(code, C_B_RED); break;
-	case 'W': strcpy(code, C_B_WHITE); break;
-	case 'Y': strcpy(code, C_B_YELLOW); break;
-	case 'D': strcpy(code, C_D_GREY); break;
-	case '0': strcpy(code, C_BK_BLACK); break;
-	case '1': strcpy(code, C_BK_BLUE); break;
-	case '2': strcpy(code, C_BK_CYAN); break;
-	case '3': strcpy(code, C_BK_GREEN); break;
-	case '4': strcpy(code, C_BK_MAGENTA); break;
-	case '5': strcpy(code, C_BK_RED); break;
-	case '6': strcpy(code, C_BK_WHITE); break;
-	case '7': strcpy(code, C_BK_YELLOW); break;
-	case 'i': strcpy(code, "\033[5m"); break;
-	case 'v': strcpy(code, "\033[7m"); break;
-	case '{': strcpy(code, "{"); break;
-	case '_': strcpy(code, "\033[4m"); break;
-	case '!': strcpy(code, "\033[1m"); break;
-	}
-
-	p = code;
-	while(*p)
-		*string++ = *p++;
-	*string = '\0';
-
-	return(strlen(code));
-}
-
-
-void colourconv(char *buffer, const char *txt, CHAR_DATA *ch)
-{
-    const char *point;
-    int skip = 0;
-    bool capitalize = false;
-	bool mxp = isMXP(ch->desc);
-
-    if(ch->desc && txt)
-    {
-	if(IS_SET(ch->act[0], PLR_COLOUR))
-	{
-	    for(point = txt ; *point ; point++)
-	    {
-			// Process color codes
-			if(*point == '{')
-			{
-				point++;
-				if(*point == '+')
-					capitalize = true;
-				else {
-					skip = colour(*point, ch, buffer);
-					while(skip-- > 0)
-					++buffer;
-				}
-				continue;
-			}
-
-			// Not a color code
-			if( capitalize && ISALPHA(*point) )
-			{
-				*buffer = UPPER(*point);
-				capitalize = false;
-			}
-			// Handle MXP filtering
-			else if(mxp)
-			{
-				switch(*point)
-				{
-				case MXP_AMPERSAND:
-					*buffer = '&';
-					break;
-				case MXP_BEGIN_TAG:
-					*buffer = '<';
-					break;
-				case MXP_END_TAG:
-					*buffer = '>';
-					break;
-				case '&':
-					*buffer++ = '&';
-					*buffer++ = 'a';
-					*buffer++ = 'm';
-					*buffer++ = 'p';
-					*buffer = ';';
-					break;
-				case '<':
-					*buffer++ = '&';
-					*buffer++ = 'l';
-					*buffer++ = 't';
-					*buffer = ';';
-					break;
-				case '>':
-					*buffer++ = '&';
-					*buffer++ = 'g';
-					*buffer++ = 't';
-					*buffer = ';';
-					break;
-				*****
-				default:
-					*buffer= *point;
-					break;
-				}
-			} else
-				*buffer = *point;
-			*++buffer = '\0';
-
-	    }
-	    *buffer = '\0';
-	}
-	else
-	{
-	    for(point = txt ; *point ; point++)
-	    {
-			if(*point == '{')
-			{
-				point++;
-				if(*point == '+')
-					capitalize = true;
-
-				continue;
-			}
-			if( capitalize && ISALPHA(*point) ) {
-				*buffer = UPPER(*point);
-				capitalize = false;
-			}
-			// Handle MXP filtering
-			else if(mxp)
-			{
-				switch(*point)
-				{
-				case MXP_AMPERSAND:
-					*buffer = '&';
-					break;
-				case MXP_BEGIN_TAG:
-					*buffer = '<';
-					break;
-				case MXP_END_TAG:
-					*buffer = '>';
-					break;
-				case '&':
-					*buffer++ = '&';
-					*buffer++ = 'a';
-					*buffer++ = 'm';
-					*buffer++ = 'p';
-					*buffer = ';';
-					break;
-				case '<':
-					*buffer++ = '&';
-					*buffer++ = 'l';
-					*buffer++ = 't';
-					*buffer = ';';
-					break;
-				case '>':
-					*buffer++ = '&';
-					*buffer++ = 'g';
-					*buffer++ = 't';
-					*buffer = ';';
-					break;
-				*****
-				default:
-					*buffer = *point;
-				}
-			} else
-				*buffer = *point;
-			*++buffer = '\0';
-	    }
-	    *buffer = '\0';
-	}
-    }
-}
-*/
 void printf_to_char (CHAR_DATA * ch, char *fmt, ...)
 {
     char buf[MSL];
@@ -4004,7 +3600,7 @@ void update_pc_timers(CHAR_DATA *ch)
 	if (ch->pk_timer == 0) {
 	    ch->pk_timer = 0;
 	    send_to_char("You feel the dangerous blood aura fade away.\n\r", ch);
-	    act("The dangerous blood aura surrounding $n fades away.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+	    act("The dangerous blood aura surrounding $n fades away.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 	}
     }
 
@@ -4032,8 +3628,8 @@ void update_pc_timers(CHAR_DATA *ch)
 	--ch->panic;
 	if (ch->panic <= 0)
 	{
-	    act("{RPANIC! You are overcome with FEAR and attmpts to FLEE!{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
-	    act("{R$n is overcome with FEAR and attmpts to FLEE!{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+	    act("{RPANIC! You are overcome with FEAR and attmpts to FLEE!{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+	    act("{R$n is overcome with FEAR and attmpts to FLEE!{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 	    do_function(ch, &do_flee, NULL);
 	    ch->panic = 0;
 	}
@@ -4082,7 +3678,7 @@ void update_pc_timers(CHAR_DATA *ch)
 	    if (number_percent() > get_skill(ch, gsk_deep_trance) - 10)
 	    {
 		send_to_char("{YYou lose your meditative focus as something grabs your attention.{x\n\r", ch);
-		act("{Y$n loses $s meditative focus as something grabs $s attention.{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+		act("{Y$n loses $s meditative focus as something grabs $s attention.{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 		ch->trance = 0;
 	    }
 	}

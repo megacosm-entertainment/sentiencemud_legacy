@@ -2068,7 +2068,7 @@ void ship_echo( SHIP_DATA *ship, char *str )
 		if( d->connected == CON_PLAYING &&
 			victim->in_room != NULL &&
 			ischar_onboard_ship(victim, ship) )
-			act(str, victim, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+			act(str, victim, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 	}
 }
 
@@ -2086,7 +2086,7 @@ void ship_echoaround( SHIP_DATA *ship, CHAR_DATA *ch, char *str )
 			victim != ch &&
 			victim->in_room != NULL &&
 			ischar_onboard_ship(victim, ship) )
-			act(str, victim, ch, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+			act(str, victim, ch, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 	}
 }
 
@@ -2296,7 +2296,7 @@ void do_ships(CHAR_DATA *ch, char *argument)
 			ship->ship->description = str_dup(buf);
 
 			obj_to_room(ship->ship, ch->in_room);
-			act("$p splashes down after being christened '$T'.",ch, NULL, NULL,ship->ship, NULL, NULL,ship->ship_name,TO_ALL);
+			act("$p splashes down after being christened '$T'.",ch, NULL, NULL,ship->ship, NULL, NULL,ship->ship_name,TO_ALL, NULL, NULL);
 		}
 		else if( !str_prefix(arg, "unload") )
 		{
@@ -2344,7 +2344,7 @@ void ship_dispatch_message(CHAR_DATA *ch, SHIP_DATA *ship, char *error, char *co
 	// This command was executed by someone other than the owner, tell the owner of the ship if they are online
 	if( IS_VALID(ship->owner) && ship->owner != ch )
 	{
-		act("{YDispatched '{W$T{Y':{x\n\r$t", ship->owner, NULL, NULL, NULL, NULL, error, command, TO_CHAR);
+		act("{YDispatched '{W$T{Y':{x\n\r$t", ship->owner, NULL, NULL, NULL, NULL, error, command, TO_CHAR, NULL, NULL);
 	}
 }
 
@@ -2509,7 +2509,7 @@ void do_ship_steer( CHAR_DATA *ch, char *argument )
 
 	if (!IS_VALID(ship))
 	{
-		act("You aren't even on a vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+		act("You aren't even on a vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		return;
 	}
 
@@ -2577,7 +2577,7 @@ void do_ship_steer( CHAR_DATA *ch, char *argument )
 	{
 		if (!IS_NPC(ch) && (!IS_IMMORTAL(ch) || !IS_SET(ch->act[1], PLR_HOLYAURA)) && !ship_isowner_player(ship, ch))
 		{
-			act("This isn't your vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+			act("This isn't your vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 			return;
 		}
 
@@ -2595,8 +2595,8 @@ void do_ship_steer( CHAR_DATA *ch, char *argument )
 				{
 					int delay = (75 - ship->first_mate->crew->leadership) / 15;
 
-					act("You give the order to your first mate to 'steer $T'.", ch, NULL, NULL, NULL, NULL, NULL, command, TO_CHAR);
-					act("$n gives an order to the first mate.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+					act("You give the order to your first mate to 'steer $T'.", ch, NULL, NULL, NULL, NULL, NULL, command, TO_CHAR, NULL, NULL);
+					act("$n gives an order to the first mate.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
 					if( IS_IMMORTAL(ch) && IS_SET(ch->act[0], PLR_HOLYLIGHT) )
 					{
@@ -2615,7 +2615,7 @@ void do_ship_steer( CHAR_DATA *ch, char *argument )
 				}
 			}
 
-			act("You must be at the helm of the vessel to steer.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+			act("You must be at the helm of the vessel to steer.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 			return;
 		}
 	}
@@ -2797,13 +2797,13 @@ void do_ship_engines( CHAR_DATA *ch, char *argument )
 
 	if (!IS_VALID(ship))
 	{
-		act("You aren't even on a vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+		act("You aren't even on a vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		return;
 	}
 
 	if( ship->ship_type != SHIP_AIR_SHIP )
 	{
-		act("The vessel has no engines.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+		act("The vessel has no engines.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		return;
 	}
 
@@ -2814,7 +2814,7 @@ void do_ship_engines( CHAR_DATA *ch, char *argument )
 		else
 			sprintf(buf, "The engines are currently idling.");
 
-		act(buf, ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+		act(buf, ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		return;
 	}
 
@@ -2823,7 +2823,7 @@ void do_ship_engines( CHAR_DATA *ch, char *argument )
 	{
 		if (!IS_NPC(ch) && (!IS_IMMORTAL(ch) || !IS_SET(ch->act[1], PLR_HOLYAURA)) && !ship_isowner_player(ship, ch))
 		{
-			act("This isn't your vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+			act("This isn't your vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 			return;
 		}
 
@@ -2841,8 +2841,8 @@ void do_ship_engines( CHAR_DATA *ch, char *argument )
 				{
 					int delay = (75 - ship->first_mate->crew->leadership) / 15;
 
-					act("You give the order to your first mate to 'engines $T'.", ch, NULL, NULL, NULL, NULL, NULL, command, TO_CHAR);
-					act("$n gives an order to the first mate.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+					act("You give the order to your first mate to 'engines $T'.", ch, NULL, NULL, NULL, NULL, NULL, command, TO_CHAR, NULL, NULL);
+					act("$n gives an order to the first mate.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
 					if( IS_IMMORTAL(ch) && IS_SET(ch->act[0], PLR_HOLYLIGHT) )
 					{
@@ -2861,7 +2861,7 @@ void do_ship_engines( CHAR_DATA *ch, char *argument )
 				}
 			}
 
-			act("You must be at the helm of the vessel to steer.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+			act("You must be at the helm of the vessel to steer.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 			return;
 		}
 	}
@@ -2930,8 +2930,8 @@ void do_ship_engines( CHAR_DATA *ch, char *argument )
 	{
 		if( ship->ship_power > SHIP_SPEED_STOPPED )
 		{
-			act("You give the order for the furnace output to be lowered.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
-			act("$n gives the order for the furnace output to be lowered.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+			act("You give the order for the furnace output to be lowered.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+			act("$n gives the order for the furnace output to be lowered.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
 			ship->ship_power = speed;
 
@@ -2963,8 +2963,8 @@ void do_ship_engines( CHAR_DATA *ch, char *argument )
 	{
 		if( ship->ship_power < SHIP_SPEED_FULL_SPEED )
 		{
-			act("You give the order for full speed.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
-			act("$n gives the order for full speed.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+			act("You give the order for full speed.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+			act("$n gives the order for full speed.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
 			ship->ship_power = speed;
 
@@ -2985,15 +2985,15 @@ void do_ship_engines( CHAR_DATA *ch, char *argument )
 
 	if( ship->ship_power > speed )
 	{
-		act("You give the order to reduce speed.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
-		act("$n gives the order to reduce speed.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+		act("You give the order to reduce speed.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+		act("$n gives the order to reduce speed.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
 		ship_echo(ship, "You feel the vessel slowing down.");
 	}
 	else if( ship->ship_power < speed )
 	{
-		act("You give the order to increase speed.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
-		act("$n gives the order to increase speed.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+		act("You give the order to increase speed.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+		act("$n gives the order to increase speed.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
 		ship_echo(ship, "You feel the vessel gaining speed.");
 	}
@@ -3030,13 +3030,13 @@ void do_ship_sails( CHAR_DATA *ch, char *argument )
 
 	if (!IS_VALID(ship))
 	{
-		act("You aren't even on a vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+		act("You aren't even on a vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		return;
 	}
 
 	if( ship->ship_type != SHIP_SAILING_BOAT )
 	{
-		act("The vessel has no sails.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+		act("The vessel has no sails.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		return;
 	}
 
@@ -3047,7 +3047,7 @@ void do_ship_sails( CHAR_DATA *ch, char *argument )
 		else
 			sprintf(buf, "The sails are currently furled.");
 
-		act(buf, ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+		act(buf, ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		return;
 	}
 
@@ -3056,7 +3056,7 @@ void do_ship_sails( CHAR_DATA *ch, char *argument )
 	{
 		if (!IS_NPC(ch) && (!IS_IMMORTAL(ch) || !IS_SET(ch->act[1], PLR_HOLYAURA)) && !ship_isowner_player(ship, ch))
 		{
-			act("This isn't your vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+			act("This isn't your vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 			return;
 		}
 
@@ -3074,8 +3074,8 @@ void do_ship_sails( CHAR_DATA *ch, char *argument )
 				{
 					int delay = (75 - ship->first_mate->crew->leadership) / 15;
 
-					act("You give the order to your first mate to 'sails $T'.", ch, NULL, NULL, NULL, NULL, NULL, command, TO_CHAR);
-					act("$n gives an order to the first mate.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+					act("You give the order to your first mate to 'sails $T'.", ch, NULL, NULL, NULL, NULL, NULL, command, TO_CHAR, NULL, NULL);
+					act("$n gives an order to the first mate.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
 					if( IS_IMMORTAL(ch) && IS_SET(ch->act[0], PLR_HOLYLIGHT) )
 					{
@@ -3094,7 +3094,7 @@ void do_ship_sails( CHAR_DATA *ch, char *argument )
 				}
 			}
 
-			act("You must be at the helm of the vessel to steer.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+			act("You must be at the helm of the vessel to steer.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 			return;
 		}
 	}
@@ -3163,8 +3163,8 @@ void do_ship_sails( CHAR_DATA *ch, char *argument )
 	{
 		if( ship->ship_power > SHIP_SPEED_STOPPED )
 		{
-			act("You give the order for the sails to be lowered.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
-			act("$n gives the order for the sails to be lowered.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+			act("You give the order for the sails to be lowered.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+			act("$n gives the order for the sails to be lowered.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
 			ship->ship_power = speed;
 
@@ -3198,8 +3198,8 @@ void do_ship_sails( CHAR_DATA *ch, char *argument )
 	{
 		if( ship->ship_power < SHIP_SPEED_FULL_SPEED )
 		{
-			act("You give the order for full speed.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
-			act("$n gives the order for full speed.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+			act("You give the order for full speed.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+			act("$n gives the order for full speed.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
 			ship->ship_power = speed;
 
@@ -3220,15 +3220,15 @@ void do_ship_sails( CHAR_DATA *ch, char *argument )
 
 	if( ship->ship_power > speed )
 	{
-		act("You give the order to reduce speed.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
-		act("$n gives the order to reduce speed.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+		act("You give the order to reduce speed.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+		act("$n gives the order to reduce speed.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
 		ship_echo(ship, "You feel the vessel slowing down.");
 	}
 	else if( ship->ship_power < speed )
 	{
-		act("You give the order to increase speed.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
-		act("$n gives the order to increase speed.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+		act("You give the order to increase speed.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+		act("$n gives the order to increase speed.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
 		ship_echo(ship, "You feel the vessel gaining speed.");
 	}
@@ -3265,7 +3265,7 @@ void do_ship_speed( CHAR_DATA *ch, char *argument )
 
 	if (!IS_VALID(ship))
 	{
-		act("You aren't even on a vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+		act("You aren't even on a vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		return;
 	}
 
@@ -3493,13 +3493,13 @@ void do_ship_navigate(CHAR_DATA *ch, char *argument)
 
 	if (!IS_VALID(ship))
 	{
-		act("You aren't even on a vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+		act("You aren't even on a vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		return;
 	}
 
 	if (!IS_IMMORTAL(ch) && !ship_isowner_player(ship, ch))
 	{
-		act("This isn't your vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+		act("This isn't your vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		return;
 	}
 
@@ -3937,13 +3937,13 @@ void do_ship_oars( CHAR_DATA *ch, char *argument )
 
 	if (!IS_VALID(ship))
 	{
-		act("You aren't even on a vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+		act("You aren't even on a vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		return;
 	}
 
 	if( ship->oars < 1 )
 	{
-		act("The vessel has no oars.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+		act("The vessel has no oars.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		return;
 	}
 
@@ -3954,7 +3954,7 @@ void do_ship_oars( CHAR_DATA *ch, char *argument )
 		else
 			sprintf(buf, "The vessel is not using oars currently.");
 
-		act(buf, ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+		act(buf, ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		return;
 	}
 
@@ -3963,7 +3963,7 @@ void do_ship_oars( CHAR_DATA *ch, char *argument )
 	{
 		if (!IS_NPC(ch) && (!IS_IMMORTAL(ch) || !IS_SET(ch->act[1], PLR_HOLYAURA)) && !ship_isowner_player(ship, ch))
 		{
-			act("This isn't your vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+			act("This isn't your vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 			return;
 		}
 
@@ -3981,8 +3981,8 @@ void do_ship_oars( CHAR_DATA *ch, char *argument )
 				{
 					int delay = (75 - ship->first_mate->crew->leadership) / 15;
 
-					act("You give the order to your first mate to 'sails $T'.", ch, NULL, NULL, NULL, NULL, NULL, command, TO_CHAR);
-					act("$n gives an order to the first mate.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+					act("You give the order to your first mate to 'sails $T'.", ch, NULL, NULL, NULL, NULL, NULL, command, TO_CHAR, NULL, NULL);
+					act("$n gives an order to the first mate.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
 					if( IS_IMMORTAL(ch) && IS_SET(ch->act[0], PLR_HOLYLIGHT) )
 					{
@@ -4001,7 +4001,7 @@ void do_ship_oars( CHAR_DATA *ch, char *argument )
 				}
 			}
 
-			act("You must be at the helm of the vessel to steer.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+			act("You must be at the helm of the vessel to steer.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 			return;
 		}
 	}
@@ -4056,8 +4056,8 @@ void do_ship_oars( CHAR_DATA *ch, char *argument )
 	{
 		if( ship->oar_power > SHIP_SPEED_STOPPED )
 		{
-			act("You give the order for the oarsmen to cease.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
-			act("$n gives the order for the oarsmen to cease.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+			act("You give the order for the oarsmen to cease.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+			act("$n gives the order for the oarsmen to cease.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
 			ship->oar_power = speed;
 
@@ -4089,8 +4089,8 @@ void do_ship_oars( CHAR_DATA *ch, char *argument )
 	{
 		if( ship->oar_power < SHIP_SPEED_FULL_SPEED )
 		{
-			act("You give the order for full oarring.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
-			act("$n gives the order for full oarring.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+			act("You give the order for full oarring.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+			act("$n gives the order for full oarring.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
 			ship->oar_power = speed;
 
@@ -4111,15 +4111,15 @@ void do_ship_oars( CHAR_DATA *ch, char *argument )
 
 	if( ship->oar_power > speed )
 	{
-		act("You give the order to reduce oarring.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
-		act("$n gives the order to reduce oarring.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+		act("You give the order to reduce oarring.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+		act("$n gives the order to reduce oarring.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
 		ship_echo(ship, "You feel the vessel slowing down.");
 	}
 	else if( ship->oar_power < speed )
 	{
-		act("You give the order to increase oarring.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
-		act("$n gives the order to increase oarring.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+		act("You give the order to increase oarring.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+		act("$n gives the order to increase oarring.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
 		ship_echo(ship, "You feel the vessel gaining speed.");
 	}
@@ -4150,7 +4150,7 @@ void do_ship_christen(CHAR_DATA *ch, char *argument)
 
 	if (!IS_VALID(ship))
 	{
-		act("You aren't even on a vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+		act("You aren't even on a vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		return;
 	}
 
@@ -4193,8 +4193,8 @@ void do_ship_christen(CHAR_DATA *ch, char *argument)
 	sprintf(buf, ship->ship->pIndexData->description, ship->ship_name);
 	ship->ship->description = str_dup(buf);
 
-	act("{Y$n christens the vessel '{x$T{Y'.{x", ch, NULL, NULL, NULL, NULL, NULL, ship->ship_name, TO_ROOM);
-	act("{YYou christen the vessel '{x$T{Y'.{x", ch, NULL, NULL, NULL, NULL, NULL, ship->ship_name, TO_CHAR);
+	act("{Y$n christens the vessel '{x$T{Y'.{x", ch, NULL, NULL, NULL, NULL, NULL, ship->ship_name, TO_ROOM, NULL, NULL);
+	act("{YYou christen the vessel '{x$T{Y'.{x", ch, NULL, NULL, NULL, NULL, NULL, ship->ship_name, TO_CHAR, NULL, NULL);
 }
 
 void do_ship_land(CHAR_DATA *ch, char *argument)
@@ -4204,7 +4204,7 @@ void do_ship_land(CHAR_DATA *ch, char *argument)
 
 	if( !IS_VALID(ship) )
 	{
-		act("You aren't even on a vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+		act("You aren't even on a vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		return;
 	}
 
@@ -4213,7 +4213,7 @@ void do_ship_land(CHAR_DATA *ch, char *argument)
 	{
 		if (!IS_NPC(ch) && (!IS_IMMORTAL(ch) || !IS_SET(ch->act[1], PLR_HOLYAURA)) && !ship_isowner_player(ship, ch))
 		{
-			act("This isn't your vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+			act("This isn't your vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 			return;
 		}
 
@@ -4231,8 +4231,8 @@ void do_ship_land(CHAR_DATA *ch, char *argument)
 				{
 					int delay = (75 - ship->first_mate->crew->leadership) / 15;
 
-					act("You give the order to your first mate to 'land'.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
-					act("$n gives an order to the first mate.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+					act("You give the order to your first mate to 'land'.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+					act("$n gives an order to the first mate.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
 					if( IS_IMMORTAL(ch) && IS_SET(ch->act[0], PLR_HOLYLIGHT) )
 					{
@@ -4251,7 +4251,7 @@ void do_ship_land(CHAR_DATA *ch, char *argument)
 				}
 			}
 
-			act("You must be at the helm of the vessel to steer.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+			act("You must be at the helm of the vessel to steer.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 			return;
 		}
 	}
@@ -4424,7 +4424,7 @@ void do_ship_launch(CHAR_DATA *ch, char *argument)
 
 	if( !IS_VALID(ship) )
 	{
-		act("You aren't even on a vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+		act("You aren't even on a vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		return;
 	}
 
@@ -4433,7 +4433,7 @@ void do_ship_launch(CHAR_DATA *ch, char *argument)
 	{
 		if (!IS_NPC(ch) && (!IS_IMMORTAL(ch) || !IS_SET(ch->act[1], PLR_HOLYAURA)) && !ship_isowner_player(ship, ch))
 		{
-			act("This isn't your vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+			act("This isn't your vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 			return;
 		}
 
@@ -4451,8 +4451,8 @@ void do_ship_launch(CHAR_DATA *ch, char *argument)
 				{
 					int delay = (75 - ship->first_mate->crew->leadership) / 15;
 
-					act("You give the order to your first mate to 'launch'.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
-					act("$n gives an order to the first mate.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+					act("You give the order to your first mate to 'launch'.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+					act("$n gives an order to the first mate.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
 					if( IS_IMMORTAL(ch) && IS_SET(ch->act[0], PLR_HOLYLIGHT) )
 					{
@@ -4471,7 +4471,7 @@ void do_ship_launch(CHAR_DATA *ch, char *argument)
 				}
 			}
 
-			act("You must be at the helm of the vessel to steer.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+			act("You must be at the helm of the vessel to steer.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 			return;
 		}
 	}
@@ -4570,7 +4570,7 @@ void do_ship_flag(CHAR_DATA *ch, char *argument)
 
 	if (!IS_VALID(ship))
 	{
-		act("You aren't even on a vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+		act("You aren't even on a vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		return;
 	}
 
@@ -4674,7 +4674,7 @@ void do_ship_waypoints(CHAR_DATA *ch, char *argument)
 
 	if (!IS_VALID(ship))
 	{
-		act("You aren't even on a vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+		act("You aren't even on a vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		return;
 	}
 
@@ -5316,7 +5316,7 @@ void do_ship_waypoints(CHAR_DATA *ch, char *argument)
 
 		if( list_size(MAP(map)->waypoints) < 1 )
 		{
-			act("{xThere are no waypoints on $p{x.", ch, NULL, NULL, map, NULL, NULL, NULL, TO_CHAR);
+			act("{xThere are no waypoints on $p{x.", ch, NULL, NULL, map, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 			return;
 		}
 
@@ -5487,7 +5487,7 @@ void do_ship_waypoints(CHAR_DATA *ch, char *argument)
 
 				if( wm )
 				{
-					act("{YThat coordinate is already on $p{Y.{x", ch, NULL, NULL, map, NULL, NULL, NULL, TO_CHAR);
+					act("{YThat coordinate is already on $p{Y.{x", ch, NULL, NULL, map, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 					return;
 				}
 			}
@@ -5500,16 +5500,16 @@ void do_ship_waypoints(CHAR_DATA *ch, char *argument)
 
 		if( use_navigator )
 		{
-		    act("{x$N{Y jots something down onto {x$p{Y and hands it to {x$n{Y.{x", ch, ship->navigator, NULL, map, NULL, NULL, NULL, TO_NOTVICT);
-		    act("{x$N{Y jots something down onto {x$p{Y and hands it to you.{x", ch, ship->navigator, NULL, map, NULL, NULL, NULL, TO_CHAR);
+		    act("{x$N{Y jots something down onto {x$p{Y and hands it to {x$n{Y.{x", ch, ship->navigator, NULL, map, NULL, NULL, NULL, TO_NOTVICT, NULL, NULL);
+		    act("{x$N{Y jots something down onto {x$p{Y and hands it to you.{x", ch, ship->navigator, NULL, map, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 
 			// Improve the navigator's navigation skill
 			crew_skill_improve(ship->navigator, CREW_SKILL_NAVIGATION);
 		}
 		else
 		{
-		    act("{x$n{Y jots something down onto {x$p{Y.{x", ch, NULL, NULL, map, NULL, NULL, NULL, TO_ROOM);
-		    act("{YYou jot down coordinates onto {x$p{Y.{x", ch, NULL, NULL, map, NULL, NULL, NULL, TO_CHAR);
+		    act("{x$n{Y jots something down onto {x$p{Y.{x", ch, NULL, NULL, map, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
+		    act("{YYou jot down coordinates onto {x$p{Y.{x", ch, NULL, NULL, map, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		}
 		return;
 	}
@@ -5525,7 +5525,7 @@ void do_ship_routes(CHAR_DATA *ch, char *argument)
 
 	if (!IS_VALID(ship))
 	{
-		act("You aren't even on a vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+		act("You aren't even on a vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		return;
 	}
 
@@ -6033,7 +6033,7 @@ void do_ship_keys(CHAR_DATA *ch, char *argument)
 
 	if (!IS_VALID(ship))
 	{
-		act("You aren't even on a vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+		act("You aren't even on a vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		return;
 	}
 
@@ -6201,8 +6201,8 @@ void do_ship_keys(CHAR_DATA *ch, char *argument)
 		list_appendlink(sk->list, luid);
 
 		obj_to_char(key, ch);
-		act("{xA ship deckhand hands you $p{x.", ch, NULL, NULL, key, NULL, NULL, NULL, TO_CHAR);
-		act("{xA ship deckhand hands $n $p{x.", ch, NULL, NULL, key, NULL, NULL, NULL, TO_ROOM);
+		act("{xA ship deckhand hands you $p{x.", ch, NULL, NULL, key, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+		act("{xA ship deckhand hands $n $p{x.", ch, NULL, NULL, key, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 		return;
 	}
 
@@ -6267,7 +6267,7 @@ void do_ship_crew(CHAR_DATA *ch, char *argument)
 
 	if (!IS_VALID(ship))
 	{
-		act("You aren't even on a vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+		act("You aren't even on a vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		return;
 	}
 
@@ -7314,837 +7314,9 @@ void do_shshow(CHAR_DATA *ch, char *argument)
 	return;
 }
 
-SHEDIT( shedit_list )
-{
-	list_ship_indexes(ch, argument);
-	return false;
-}
-
-SHEDIT( shedit_show )
-{
-	SHIP_INDEX_DATA *ship;
-	BUFFER *buffer;
-	char buf[MSL];
-
-	EDIT_SHIP(ch, ship);
-
-	buffer = new_buf();
-
-	add_buf(buffer, "{x");
-
-	sprintf(buf, "Name:        [%5ld] %s{x\n\r", ship->vnum, ship->name);
-	add_buf(buffer, buf);
-
-	sprintf(buf, "Ship Class:  %s{x\n\r", flag_string(ship_class_types, ship->ship_class));
-	add_buf(buffer, buf);
-
-	sprintf(buf, "Flags:       [%s]\n\r", flag_string(ship_flags, ship->flags));
-	add_buf(buffer, buf);
-
-	if( IS_VALID(ship->blueprint) )
-		sprintf(buf, "Blueprint:   [%5ld] %s{x\n\r", ship->blueprint->vnum, ship->blueprint->name);
-	else
-		sprintf(buf, "Blueprint:   {Dunassigned{x\n\r");
-	add_buf(buffer, buf);
-
-	OBJ_INDEX_DATA *obj = get_obj_index(ship->area, ship->ship_object);
-	if( obj )
-		sprintf(buf, "Ship Object: [%5ld] %s{x\n\r", obj->vnum, obj->short_descr);
-	else
-		sprintf(buf, "Ship Object: {Dunassigned{x\n\r");
-	add_buf(buffer, buf);
-
-	sprintf(buf, "Hit Points:  [%5d]{x\n\r", ship->hit);
-	add_buf(buffer, buf);
-
-	sprintf(buf, "Max Guns:    [%5d]{x\n\r", ship->guns);
-	add_buf(buffer, buf);
-
-	sprintf(buf, "Min Crew:    [%5d]{x\n\r", ship->min_crew);
-	add_buf(buffer, buf);
-
-	sprintf(buf, "Max Crew:    [%5d]{x\n\r", ship->max_crew);
-	add_buf(buffer, buf);
-
-	sprintf(buf, "Oars:        [%5d]{x\n\r", ship->oars);
-	add_buf(buffer, buf);
-
-	sprintf(buf, "Move Delay:  [%5d]{x\n\r", ship->move_delay);
-	add_buf(buffer, buf);
-
-	sprintf(buf, "Move Steps:  [%5d]{x\n\r", ship->move_steps);
-	add_buf(buffer, buf);
-
-	sprintf(buf, "Max Turning: %d degrees{x\n\r", ship->turning);
-	add_buf(buffer, buf);
-
-	sprintf(buf, "Max Weight:  [%5d]{x\n\r", ship->weight);
-	add_buf(buffer, buf);
-
-	sprintf(buf, "Capacity:    [%5d]{x\n\r", ship->capacity);
-	add_buf(buffer, buf);
-
-	sprintf(buf, "Base Armor:  [%5d]{x\n\r", ship->armor);
-	add_buf(buffer, buf);
-
-	add_buf(buffer, "Description:\n\r");
-	add_buf(buffer, fix_string(ship->description));
-	add_buf(buffer, "\n\r\n\r");
-
-	add_buf(buffer, "Special Keys:\n\r");
-	if( list_size(ship->special_keys) > 0 )
-	{
-		ITERATOR it;
-		OBJ_INDEX_DATA *key;
-		int count = 0;
-
-		add_buf(buffer, "    [  Vnum  ]  Name\n\r");
-		add_buf(buffer, "==============================================\n\r");
-
-		iterator_start(&it, ship->special_keys);
-		while( (key = (OBJ_INDEX_DATA *)iterator_nextdata(&it)) )
-		{
-			char key_color = 'Y';
-
-			if( key->item_type != ITEM_KEY )
-			{
-				key_color = 'R';
-			}
-
-
-			sprintf(buf, "{W%3d  {G%8ld  {%c%s{x\n\r", ++count, key->vnum, key_color, key->short_descr);
-			add_buf(buffer, buf);
-		}
-		iterator_stop(&it);
-
-		add_buf(buffer, "==============================================\n\r");
-		add_buf(buffer, "{RRED{x = not a key.\n\r");
-	}
-	else
-	{
-		add_buf(buffer, "  None\n\r");
-	}
-
-	if( !ch->lines && strlen(buffer->string) > MAX_STRING_LENGTH )
-	{
-		send_to_char("Too much to display.  Please enable scrolling.\n\r", ch);
-	}
-	else
-	{
-		page_to_char(buffer->string, ch);
-	}
-
-	free_buf(buffer);
-	return false;
-}
-
-SHEDIT( shedit_create )
-{
-	SHIP_INDEX_DATA *ship;
-	WNUM wnum;
-	int  iHash;
-	AREA_DATA *pArea = ch->in_room->area;
-
-	if (argument[0] == '\0' || !parse_widevnum(argument, ch->in_room->area, &wnum) || !wnum.pArea || wnum.vnum < 1)
-	{
-		long last_vnum = 0;
-		long value = pArea->top_ship_vnum + 1;
-		for(last_vnum = 1; last_vnum <= pArea->top_ship_vnum; last_vnum++)
-		{
-			if( !get_ship_index(pArea, last_vnum) )
-			{
-				value = last_vnum;
-				break;
-			}
-		}
-
-		wnum.pArea = pArea;
-		wnum.vnum = value;
-	}
-
-	if( get_ship_index(wnum.pArea, wnum.vnum) )
-	{
-		send_to_char("That vnum already exists.\n\r", ch);
-		return false;
-	}
-
-	ship = new_ship_index();
-	ship->vnum = wnum.vnum;
-	ship->area = wnum.pArea;
-
-	iHash							= ship->vnum % MAX_KEY_HASH;
-	ship->next						= pArea->ship_index_hash[iHash];
-	pArea->ship_index_hash[iHash]			= ship;
-	olc_set_editor(ch, ED_SHIP, ship);
-
-	pArea->bottom_ship_vnum = UMAX(pArea->bottom_ship_vnum, ship->vnum);
-	pArea->top_ship_vnum = UMAX(pArea->top_ship_vnum, ship->vnum);
-
-    return true;
-}
-
-SHEDIT( shedit_name )
-{
-	SHIP_INDEX_DATA *ship;
-
-	EDIT_SHIP(ch, ship);
-
-	smash_tilde(argument);
-
-	if( argument[0] == '\0' )
-	{
-		send_to_char("Syntax:  name [name]\n\r", ch);
-		return false;
-	}
-
-	free_string(ship->name);
-	ship->name = str_dup(argument);
-	send_to_char("Name changed.\n\r", ch);
-	return true;
-}
-
-SHEDIT( shedit_desc )
-{
-	SHIP_INDEX_DATA *ship;
-
-	EDIT_SHIP(ch, ship);
-
-	if( argument[0] != '\0' )
-	{
-		send_to_char("Syntax:  desc\n\r", ch);
-		return false;
-	}
-
-	string_append(ch, &ship->description);
-	return true;
-}
-
-SHEDIT( shedit_class )
-{
-	SHIP_INDEX_DATA *ship;
-	int value;
-
-	EDIT_SHIP(ch, ship);
-
-	value = flag_value(ship_class_types, argument);
-	if( value == NO_FLAG )
-	{
-		send_to_char("Syntax:  class [ship class]\n\r", ch);
-		send_to_char("See '? shipclass' for list of classes.\n\r\n\r", ch);
-		show_help(ch, "shipclass");
-		return false;
-	}
-
-	ship->ship_class = value;
-	send_to_char("Ship Class changed.\n\r", ch);
-	return true;
-}
-
-SHEDIT( shedit_flags)
-{
-	SHIP_INDEX_DATA *ship;
-	int value;
-
-	EDIT_SHIP(ch, ship);
-
-	value = flag_value(ship_flags, argument);
-	if( value == NO_FLAG )
-	{
-		send_to_char("Syntax:  flags [flags]\n\r", ch);
-		send_to_char("See '? ship' for list of flags.\n\r\n\r", ch);
-		show_help(ch, "ship");
-		return false;
-	}
-
-	ship->flags ^= value;
-	send_to_char("Ship flags changed.\n\r", ch);
-	return true;
-}
 
 BLUEPRINT_LAYOUT_SECTION_DATA *blueprint_get_nth_section(BLUEPRINT *bp, int section_no, BLUEPRINT_LAYOUT_SECTION_DATA **in_group);
 
-SHEDIT( shedit_blueprint )
-{
-	SHIP_INDEX_DATA *ship;
-	BLUEPRINT *bp;
-	WNUM wnum;
-
-	EDIT_SHIP(ch, ship);
-
-	if( argument[0] == '\0' )
-	{
-		send_to_char("Syntax:  blueprint [widevnum]\n\r", ch);
-		return false;
-	}
-
-	if( !parse_widevnum(argument, ch->in_room->area, &wnum) )
-	{
-		send_to_char("That is not a number.\n\r", ch);
-		return false;
-	}
-
-	if( !(bp = get_blueprint(wnum.pArea, wnum.vnum)) )
-	{
-		send_to_char("Blueprint does not exist.\n\r", ch);
-		return false;
-	}
-
-	// Verify the blueprint has certain features
-	// * Has an entry room
-	if( list_size(bp->entrances))
-	{
-		send_to_char("Blueprint requires an entry point for boarding purposes.\n\r", ch);
-		return false;
-	}
-
-	// Only allow static blueprints
-	if (!is_blueprint_static(bp))
-	{
-		send_to_char("Only static blueprints maybe be used.\n\r", ch);
-		return false;
-	}
-
-	// * Room with HELM
-	// * Room with VIEWWILDS (optional)
-	bool helm = false, viewwilds = false;
-	ITERATOR sit;
-
-	// Check special rooms
-	BLUEPRINT_SPECIAL_ROOM *special_room;
-	iterator_start(&sit, bp->special_rooms);
-	while( (special_room = (BLUEPRINT_SPECIAL_ROOM *)iterator_nextdata(&sit)) )
-	{
-		ROOM_INDEX_DATA *room = blueprint_get_special_room(bp, special_room);
-
-		if( room )
-		{
-			if( IS_SET(room->room_flag[0], ROOM_SHIP_HELM) )
-			{
-				helm = true;
-			}
-
-			if( IS_SET(room->room_flag[0], ROOM_VIEWWILDS) )
-			{
-				viewwilds = true;
-			}
-		}
-	}
-	iterator_stop(&sit);
-
-	if( !helm || !viewwilds )
-	{
-		BLUEPRINT_SECTION *section;
-		iterator_start(&sit, bp->sections);
-		while( (section = (BLUEPRINT_SECTION *)iterator_nextdata(&sit)) )
-		{
-			for( long vnum = section->lower_vnum; vnum <= section->upper_vnum; vnum++)
-			{
-				ROOM_INDEX_DATA *room = get_room_index(bp->area, vnum);
-
-				if( room )
-				{
-					if( IS_SET(room->room_flag[0], ROOM_SHIP_HELM) )
-					{
-						helm = true;
-					}
-
-					if( IS_SET(room->room_flag[0], ROOM_VIEWWILDS) )
-					{
-						viewwilds = true;
-					}
-				}
-			}
-		}
-		iterator_stop(&sit);
-	}
-
-
-	if( !helm )
-	{
-		send_to_char("Blueprint requires at least one room with the 'helm' flag set, for controlling the ship.\n\r", ch);
-		return false;
-	}
-
-	if( !viewwilds )
-	{
-		// Not a deal breaker, just warn about it being missing
-		send_to_char("{YWARNING: {xBlueprint missing a room with 'viewwilds' to serve as a crow's nest. Might want to add one.\n\r", ch);
-	}
-
-
-	ship->blueprint = bp;
-	send_to_char("Ship blueprint changed.\n\r", ch);
-	return true;
-}
-
-SHEDIT( shedit_object )
-{
-	SHIP_INDEX_DATA *ship;
-	OBJ_INDEX_DATA *obj;
-	long vnum;
-
-	EDIT_SHIP(ch, ship);
-
-	if( argument[0] == '\0' )
-	{
-		send_to_char("Syntax:  object [vnum]\n\r", ch);
-		return false;
-	}
-
-	if( !is_number(argument) )
-	{
-		send_to_char("That is not a number.\n\r", ch);
-		return false;
-	}
-
-	vnum = atol(argument);
-	obj = get_obj_index(ship->area, vnum);
-	if( !obj )
-	{
-		send_to_char("That object does not exist.\n\r", ch);
-		return false;
-	}
-
-	if( obj->item_type != ITEM_SHIP )
-	{
-		send_to_char("Object is not a ship.\n\r", ch);
-		return false;
-	}
-
-	ship->ship_object = vnum;
-	send_to_char("Ship object set.\n\r", ch);
-	return true;
-}
-
-SHEDIT( shedit_hit )
-{
-	SHIP_INDEX_DATA *ship;
-
-	EDIT_SHIP(ch, ship);
-
-	if( argument[0] == '\0' )
-	{
-		send_to_char("Syntax:  hit [points]\n\r", ch);
-		return false;
-	}
-
-	if( !is_number(argument) )
-	{
-		send_to_char("That is not a number.\n\r", ch);
-		return false;
-	}
-
-	int value = atoi(argument);
-	if( value < 1 || value > SHIP_MAX_HIT )
-	{
-		send_to_char("Hit points must be in the range of 1 to " __STR(SHIP_MAX_HIT) ".\n\r", ch);
-		return false;
-	}
-
-	ship->hit = value;
-	send_to_char("Ship hit points changed.\n\r", ch);
-	return true;
-}
-
-SHEDIT( shedit_turning )
-{
-	SHIP_INDEX_DATA *ship;
-
-	EDIT_SHIP(ch, ship);
-
-	if( argument[0] == '\0' )
-	{
-		send_to_char("Syntax:  turning [degrees]\n\r", ch);
-		return false;
-	}
-
-	if( !is_number(argument) )
-	{
-		send_to_char("That is not a number.\n\r", ch);
-		return false;
-	}
-
-	int value = atoi(argument);
-	if( value < 1 || value > 60 )
-	{
-		send_to_char("Turning power must be in the range of 1 to 60 degrees.\n\r", ch);
-		return false;
-	}
-
-	ship->turning = value;
-	send_to_char("Turning power changed.\n\r", ch);
-	return true;
-}
-
-SHEDIT( shedit_guns )
-{
-	SHIP_INDEX_DATA *ship;
-
-	EDIT_SHIP(ch, ship);
-
-	if( argument[0] == '\0' )
-	{
-		send_to_char("Syntax:  guns [count]\n\r", ch);
-		return false;
-	}
-
-	if( !is_number(argument) )
-	{
-		send_to_char("That is not a number.\n\r", ch);
-		return false;
-	}
-
-	int value = atoi(argument);
-	if( value < 0 || value > SHIP_MAX_GUNS )
-	{
-		send_to_char("Gun allowance must be in the range of 0 to " __STR(SHIP_MAX_GUNS) ".\n\r", ch);
-		return false;
-	}
-
-	ship->guns = value;
-	send_to_char("Ship gun allowance changed.\n\r", ch);
-	return true;
-}
-
-
-SHEDIT( shedit_oars )
-{
-	SHIP_INDEX_DATA *ship;
-
-	EDIT_SHIP(ch, ship);
-
-	if( argument[0] == '\0' )
-	{
-		send_to_char("Syntax:  oars [number]\n\r", ch);
-		return false;
-	}
-
-	if( !is_number(argument) )
-	{
-		send_to_char("That is not a number.\n\r", ch);
-		return false;
-	}
-
-	int value = atoi(argument);
-	if( value < 0 )
-	{
-		send_to_char("Number of Oar positions must be non-negative.\n\r", ch);
-		return false;
-	}
-
-	ship->oars = value;
-	send_to_char("Oar positions changed.\n\r", ch);
-	return true;
-}
-
-
-SHEDIT( shedit_crew )
-{
-	SHIP_INDEX_DATA *ship;
-	char arg[MIL];
-
-	EDIT_SHIP(ch, ship);
-
-	if( argument[0] == '\0' )
-	{
-		send_to_char("Syntax:  crew [min] [max]\n\r", ch);
-		return false;
-	}
-
-	argument = one_argument(argument, arg);
-
-	if( !is_number(arg) ||  !is_number(argument) )
-	{
-		send_to_char("That is not a number.\n\r", ch);
-		return false;
-	}
-
-	int min_crew = atoi(arg);
-	int max_crew = atoi(argument);
-
-	if( max_crew < min_crew )
-	{
-		int value = min_crew;
-		min_crew = max_crew;
-		max_crew = value;
-	}
-
-	if( min_crew < 0 || min_crew > SHIP_MAX_CREW )
-	{
-		send_to_char("Minimum crew allowance must be in the range of 0 to " __STR(SHIP_MAX_CREW) ".\n\r", ch);
-		return false;
-	}
-
-	if( max_crew < 0 || max_crew > SHIP_MAX_CREW )
-	{
-		send_to_char("Maximum crew allowance must be in the range of 0 to " __STR(SHIP_MAX_CREW) ".\n\r", ch);
-		return false;
-	}
-
-	ship->min_crew = min_crew;
-	ship->max_crew = max_crew;
-	send_to_char("Ship crew allowance changed.\n\r", ch);
-	return true;
-}
-
-SHEDIT( shedit_move )
-{
-	SHIP_INDEX_DATA *ship;
-	char arg[MIL];
-
-	EDIT_SHIP(ch, ship);
-
-	if( argument[0] == '\0' )
-	{
-		send_to_char("Syntax:  move [delay] [steps]\n\r", ch);
-		return false;
-	}
-
-	argument = one_argument(argument, arg);
-
-	if( !is_number(arg) || !is_number(argument) )
-	{
-		send_to_char("That is not a number.\n\r", ch);
-		return false;
-	}
-
-	int delay = atoi(arg);
-	int steps = atoi(argument);
-
-	if( delay < SHIP_MIN_DELAY )
-	{
-		send_to_char("Move delay must be at least " __STR(SHIP_MIN_DELAY) ".\n\r", ch);
-		return false;
-	}
-
-	if( steps < SHIP_MIN_STEPS )
-	{
-		send_to_char("Move steps must be at least " __STR(SHIP_MIN_STEPS) ".\n\r", ch);
-		return false;
-	}
-
-	ship->move_steps = steps;
-	ship->move_delay = delay;
-	send_to_char("Ship movement changed.\n\r", ch);
-	return true;
-}
-
-SHEDIT( shedit_weight )
-{
-	SHIP_INDEX_DATA *ship;
-
-	EDIT_SHIP(ch, ship);
-
-	if( argument[0] == '\0' )
-	{
-		send_to_char("Syntax:  weight [weight]\n\r", ch);
-		return false;
-	}
-
-	if( !is_number(argument) )
-	{
-		send_to_char("That is not a number.\n\r", ch);
-		return false;
-	}
-
-	int value = atoi(argument);
-	if( value < 0 || value > SHIP_MAX_WEIGHT )
-	{
-		send_to_char("Weight allowance must be in the range of 0 to " __STR(SHIP_MAX_WEIGHT) ".\n\r", ch);
-		return false;
-	}
-
-	ship->weight = value;
-	send_to_char("Ship weight allowance changed.\n\r", ch);
-	return true;
-}
-
-SHEDIT( shedit_capacity )
-{
-	SHIP_INDEX_DATA *ship;
-
-	EDIT_SHIP(ch, ship);
-
-	if( argument[0] == '\0' )
-	{
-		send_to_char("Syntax:  capacity [count]\n\r", ch);
-		return false;
-	}
-
-	if( !is_number(argument) )
-	{
-		send_to_char("That is not a number.\n\r", ch);
-		return false;
-	}
-
-	int value = atoi(argument);
-	if( value < 0 || value > SHIP_MAX_CAPACITY )
-	{
-		send_to_char("Ship capacity must be in the range of 0 to " __STR(SHIP_MAX_CAPACITY) ".\n\r", ch);
-		return false;
-	}
-
-	ship->capacity = value;
-	send_to_char("Ship capacity changed.\n\r", ch);
-	return true;
-}
-
-SHEDIT( shedit_armor)
-{
-	SHIP_INDEX_DATA *ship;
-
-	EDIT_SHIP(ch, ship);
-
-	if( argument[0] == '\0' )
-	{
-		send_to_char("Syntax:  armor [rating]\n\r", ch);
-		return false;
-	}
-
-	if( !is_number(argument) )
-	{
-		send_to_char("That is not a number.\n\r", ch);
-		return false;
-	}
-
-	int value = atoi(argument);
-	if( value < 0 || value > SHIP_MAX_ARMOR )
-	{
-		send_to_char("Ship base armor must be in the range of 0 to " __STR(SHIP_MAX_ARMOR) ".\n\r", ch);
-		return false;
-	}
-
-	ship->armor = value;
-	send_to_char("Ship base armor changed.\n\r", ch);
-	return true;
-}
-
-
-SHEDIT( shedit_keys )
-{
-	SHIP_INDEX_DATA *ship;
-	char arg[MIL];
-
-	EDIT_SHIP(ch, ship);
-
-	if( argument[0] == '\0' )
-	{
-		send_to_char("Syntax:  keys list\n\r", ch);
-		send_to_char("Syntax:  keys add <widevnum>\n\r", ch);
-		send_to_char("Syntax:  keys remove <#>\n\r", ch);
-		return false;
-	}
-
-	argument = one_argument(argument, arg);
-
-	if( !str_cmp(arg, "list") )
-	{
-		if( list_size(ship->special_keys) > 0 )
-		{
-			ITERATOR it;
-			OBJ_INDEX_DATA *key;
-			BUFFER *buffer = new_buf();
-			char buf[MSL];
-			int count = 0;
-
-			add_buf(buffer, "    [  Vnum  ]  Name\n\r");
-			add_buf(buffer, "==============================================\n\r");
-
-			iterator_start(&it, ship->special_keys);
-			while( (key = (OBJ_INDEX_DATA *)iterator_nextdata(&it)) )
-			{
-				char key_color = 'Y';
-
-				if( key->item_type != ITEM_KEY )
-				{
-					key_color = 'R';
-				}
-
-				sprintf(buf, "{W%3d  {G%8ld  {%c%s{x\n\r", ++count, key->vnum, key_color, key->short_descr);
-				add_buf(buffer, buf);
-			}
-			iterator_stop(&it);
-
-			add_buf(buffer, "==============================================\n\r");
-			add_buf(buffer, "{RRED{x = not a key.\n\r");
-
-			if( !ch->lines && strlen(buffer->string) > MAX_STRING_LENGTH )
-			{
-				send_to_char("Too much to display.  Please enable scrolling.\n\r", ch);
-			}
-			else
-			{
-				page_to_char(buffer->string, ch);
-			}
-
-			free_buf(buffer);
-		}
-		else
-		{
-			send_to_char("No special keys to display.\n\r", ch);
-		}
-
-		return false;
-	}
-
-	if( !str_cmp(arg, "add") )
-	{
-		OBJ_INDEX_DATA *key;
-		WNUM wnum;
-
-		if( !parse_widevnum(argument, ch->in_room->area, &wnum) )
-		{
-			send_to_char("Please specify a widevnum.\n\r", ch);
-			return false;
-		}
-
-		if( !(key = get_obj_index(wnum.pArea, wnum.vnum)) )
-		{
-			send_to_char("That object does not exist.\n\r", ch);
-			return false;
-		}
-
-		if( key->item_type != ITEM_KEY )
-		{
-			send_to_char("That is not a key.\n\r", ch);
-			return false;
-		}
-
-		if( list_hasdata(ship->special_keys, key) )
-		{
-			send_to_char("That key is already in the list.\n\r", ch);
-			return false;
-		}
-
-		list_appendlink(ship->special_keys, key);
-		send_to_char("Key added.\n\r", ch);
-		return true;
-	}
-
-	if( !str_cmp(arg, "remove") )
-	{
-		if( !is_number(argument) )
-		{
-			send_to_char("That is not a number,\n\r", ch);
-			return false;
-		}
-
-		int value = atoi(argument);
-		if( value < 0 || value > list_size(ship->special_keys) )
-		{
-			send_to_char("Index out of range.\n\r", ch);
-			return false;
-		}
-
-		list_remnthlink(ship->special_keys, value, true);
-		send_to_char("Key removed.\n\r", ch);
-		return true;
-	}
-
-	shedit_keys(ch, "");
-	return false;
-
-}
 
 
 /////////////////////////////////////////////////////////////////

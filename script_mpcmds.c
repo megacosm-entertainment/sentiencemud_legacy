@@ -926,7 +926,7 @@ SCRIPT_CMD(do_mpasound)
 					if(i <= j) {
 						// No, so do the message
 						MOBtrigger  = false;
-						act(buf_string(buffer), room->people, NULL, NULL, NULL, NULL, NULL, NULL, TO_ALL);
+						act(buf_string(buffer), room->people, NULL, NULL, NULL, NULL, NULL, NULL, TO_ALL, NULL, NULL);
 						MOBtrigger  = true;
 						rooms[i++] = room;
 					}
@@ -1803,7 +1803,7 @@ SCRIPT_CMD(do_mpecho)
 	expand_string(info,argument,buffer);
 
 	if(buf_string(buffer)[0] != '\0')
-		act(buf_string(buffer), info->mob, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+		act(buf_string(buffer), info->mob, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 	free_buf(buffer);
 }
 
@@ -1838,7 +1838,7 @@ SCRIPT_CMD(do_mpechoroom)
 	expand_string(info,argument,buffer);
 
 	if(buf_string(buffer)[0] != '\0')
-		act(buf_string(buffer), room->people, NULL, NULL, NULL, NULL, NULL, NULL, TO_ALL);
+		act(buf_string(buffer), room->people, NULL, NULL, NULL, NULL, NULL, NULL, TO_ALL, NULL, NULL);
 	free_buf(buffer);
 }
 
@@ -1869,7 +1869,7 @@ SCRIPT_CMD(do_mpechoaround)
 	expand_string(info,rest,buffer);
 
 	if(buf_string(buffer)[0] != '\0')
-		act(buf_string(buffer), victim, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+		act(buf_string(buffer), victim, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 	free_buf(buffer);
 }
 
@@ -1912,7 +1912,7 @@ SCRIPT_CMD(do_mpechonotvict)
 	expand_string(info,argument,buffer);
 
 	if(buf_string(buffer)[0] != '\0')
-		act(buf_string(buffer), victim, NULL, NULL, NULL, NULL, NULL, NULL, TO_NOTVICT);
+		act(buf_string(buffer), victim, NULL, NULL, NULL, NULL, NULL, NULL, TO_NOTVICT, NULL, NULL);
 	free_buf(buffer);
 }
 
@@ -1958,7 +1958,7 @@ SCRIPT_CMD(do_mpechobattlespam)
 	{
 		for (ch = attacker->in_room->people; ch; ch = ch->next_in_room) {
 			if (!IS_NPC(ch) && (ch != attacker && ch != victim) && (is_same_group(ch, attacker) || is_same_group(ch, victim) || !IS_SET(ch->comm, COMM_NOBATTLESPAM))) {
-				act(buf_string(buffer), ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+				act(buf_string(buffer), ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 			}
 		}
 	}
@@ -2024,7 +2024,7 @@ SCRIPT_CMD(do_mpechoat)
 	expand_string(info,rest,buffer);
 
 	if( buf_string(buffer)[0] != '\0' )
-		act(buf_string(buffer), victim, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+		act(buf_string(buffer), victim, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 	free_buf(buffer);
 }
 
@@ -2055,7 +2055,7 @@ SCRIPT_CMD(do_mpechogrouparound)
 	expand_string(info,rest,buffer);
 
 	if( buf_string(buffer)[0] != '\0' )
-		act_new(buf_string(buffer),victim,NULL,NULL,NULL,NULL,NULL,NULL,TO_NOTFUNC,POS_RESTING,rop_same_group);
+		act_new(buf_string(buffer),victim, NULL, NULL,NULL,NULL,NULL,NULL,NULL,NULL,TO_NOTFUNC,POS_RESTING,rop_same_group);
 	free_buf(buffer);
 }
 
@@ -2086,7 +2086,7 @@ SCRIPT_CMD(do_mpechogroupat)
 	expand_string(info,rest,buffer);
 
 	if( buf_string(buffer)[0] != '\0' )
-		act_new(buf_string(buffer),victim,NULL,NULL,NULL,NULL,NULL,NULL,TO_FUNC,POS_RESTING,rop_same_group);
+		act_new(buf_string(buffer),victim, NULL, NULL,NULL,NULL,NULL,NULL,NULL,NULL,TO_FUNC,POS_RESTING,rop_same_group);
 
 	free_buf(buffer);
 }
@@ -2122,7 +2122,7 @@ SCRIPT_CMD(do_mpecholeadaround)
 	expand_string(info,rest,buffer);
 
 	if( buf_string(buffer)[0] != '\0' )
-		act(buf_string(buffer), victim, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+		act(buf_string(buffer), victim, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
 	free_buf(buffer);
 }
@@ -2158,7 +2158,7 @@ SCRIPT_CMD(do_mpecholeadat)
 	expand_string(info,rest,buffer);
 
 	if( buf_string(buffer)[0] != '\0' )
-		act(buf_string(buffer), victim, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+		act(buf_string(buffer), victim, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 
 	free_buf(buffer);
 }
@@ -3789,7 +3789,7 @@ SCRIPT_CMD(do_mpzot)
 
 	send_to_char("{Y***{R****** {WZOT {R******{Y***{x\n\r\n\r", victim);
 	send_to_char("{YYou are struck by a bolt of lightning!\n\r{x", victim);
-	act("{Y$n is struck by a bolt of lightning!{x", victim, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+	act("{Y$n is struck by a bolt of lightning!{x", victim, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 	send_to_char("{ROUCH! That really did hurt!{x\n\r", victim);
 
 	victim->hit = 1;

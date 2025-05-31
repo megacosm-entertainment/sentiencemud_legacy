@@ -140,6 +140,7 @@ void do_testemail (CHAR_DATA *ch, char *argument)
 //  quickmail_destroy(mailobj);
 //  return 0;
 
+
   const char* errmsg;
   //quickmail_set_debug_log(mailobj, stderr);
   if ((errmsg = quickmail_send(mailobj, game_settings.email_host, game_settings.email_port, game_settings.email_username, game_settings.email_password)) != NULL)

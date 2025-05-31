@@ -1595,6 +1595,7 @@ RESERVED_WNUM reserved_rprog_wnums[] =
  * Local booting procedures.
 */
 void init_mm(void);
+void crypto_init(void);
 void load_shares(void);
 void fix_objects(void);
 void fix_roomprogs(void);
@@ -1662,6 +1663,7 @@ void boot_db(void)
      * Init random number generator.
      */
     init_mm();
+	crypto_init();
 
     global_quest.mobs = NULL;
     global_quest.objects = NULL;
@@ -1916,13 +1918,7 @@ void boot_db(void)
     log_string("Opening immortal staff");
     read_immstaff();
 
-    if ((fp = fopen("social.are", "r")) != NULL)
-    {
-		log_string("Doing load_socials...");
-		fread_word(fp);
-		load_socials(fp);
-		fclose(fp);
-    }
+	load_socials_file();
 
     help_greeting = str_dup("hello");
 

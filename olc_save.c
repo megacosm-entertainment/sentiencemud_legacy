@@ -196,7 +196,7 @@ void do_asave_new(CHAR_DATA *ch, char *argument)
 
 		save_area_list();
 		save_area_new(ch->in_room->area);
-		act("Saved $t.", ch, NULL, NULL, NULL, NULL, ch->in_room->area->name, NULL, TO_CHAR);
+		act("Saved $t.", ch, NULL, NULL, NULL, NULL, ch->in_room->area->name, NULL, TO_CHAR, NULL, NULL);
 		return;
     }
 
@@ -280,7 +280,7 @@ void save_area_list()
     else
     {
 	for (pArea = area_first; pArea; pArea = pArea->next)
-	    fprintf(fp, "%s\n", pArea->file_name);
+	    fprintf(fp, AREA_DIR "%s\n", pArea->file_name);
 
 	fprintf(fp, "$\n");
 	fclose(fp);
@@ -349,7 +349,7 @@ void save_area_new(AREA_DATA *area)
 	SET_BIT(area->area_flags, AREA_TESTPORT);
     }
     else
-	sprintf(filename, "%s", area->file_name);
+	sprintf(filename, AREA_DIR "%s", area->file_name);
 
     if ((fp = fopen(filename, "w")) == NULL) {
 		snprintf(buf, sizeof(buf), "save_area_new: couldn't open file %s", filename);

@@ -5746,3 +5746,54 @@ char *olc_show_script_status(SCRIPT_DATA *prog, int type)
     }
     else return "Unknown";
 }
+
+void do_socedit(CHAR_DATA *ch, char *argument)
+{ 
+    SOCIAL_DATA *social;
+    char arg[MAX_INPUT_LENGTH];
+
+    if (IS_NPC(ch)) return;
+
+    argument = one_argument(argument, arg);
+
+    if (arg[0] == '\0') {
+        send_to_char("Syntax: socedit <social_name>\n\r", ch);
+        send_to_char("        socedit create <new_social_name>\n\r", ch);
+        return;
+    }
+
+    if (!str_cmp(arg, "save")) {
+         save_socials();
+         send_to_char("Socials saved.\n\r", ch);
+         return;
+    }
+    
+    if (!str_cmp(arg, "create")) {
+        // socedit_create handles setting ch->desc->pEdit and editor mode
+        // It's part of the socedit_table, but can be called directly too
+        // For direct call, ensure OLC permissions are checked
+        if (ch->desc->editor != ED_NONE) {
+             send_to_char("You are already in an OLC editor.\n\r", ch);
+             return;
+        }
+        socedit_create(ch, argument); // argument here is the <new_social_name>
+        return;
+    }
+
+
+    if ((social = get_social(arg)) == NULL) {
+        send_to_char("Social not found. Use 'socedit create <name>' to make a new one.\n\r", ch);
+        return;
+    }
+
+    if (ch->desc->editor != ED_NONE) {
+        send_to_char("You are already in an OLC editor.\n\r", ch);
+        return;
+    }
+
+    ch->desc->pEdit = (void *)social;
+    ch->desc->editor = ED_SOCEDIT; // Ensure ED_SOCEDIT is defined
+    SET_BIT(ch->pcdata->immortal->olc_flags, OLC_CHANGED); // Assume changes will be made
+    socedit_show(ch, ""); // Show initial state
+    return;
+}

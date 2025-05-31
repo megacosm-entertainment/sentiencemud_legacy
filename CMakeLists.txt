@@ -1,0 +1,219 @@
+#
+# ROM CMakeLists.txt
+#
+cmake_minimum_required (VERSION 3.10)
+
+project(sent)
+
+# Get Git version, build date, and commit URL
+# Assumes date.sh and giturl.sh are in the same directory as CMakeLists.txt or in PATH
+# and are executable.
+execute_process(COMMAND git describe --dirty --always --tags OUTPUT_VARIABLE GIT_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+execute_process(COMMAND sh -c "./date.sh" WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} OUTPUT_VARIABLE CUR_BUILD_DATE OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+execute_process(COMMAND sh -c "./giturl.sh" WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} OUTPUT_VARIABLE GIT_URL OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+
+# Fallback if git commands fail (e.g., not in a git repo or scripts not found)
+if(NOT GIT_VERSION)
+    set(GIT_VERSION "unknown_version")
+endif()
+if(NOT CUR_BUILD_DATE)
+    set(CUR_BUILD_DATE "unknown_date")
+endif()
+if(NOT GIT_URL)
+    set(GIT_URL "unknown_url")
+endif()
+
+set(COMMON_COMPILE_OPTIONS -Wall -fcommon -DMALLOC_STDLIB -fstack-protector -m64 -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -fno-strict-aliasing -fwrapv -fPIC -fno-omit-frame-pointer)
+
+if (CMAKE_C_COMPILER_ID STREQUAL "MSVC")
+    add_compile_options(/W4 /WX /std:c17)
+elseif (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    add_compile_options(${COMMON_COMPILE_OPTIONS} -std=gnu2x)
+elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    add_compile_options(${COMMON_COMPILE_OPTIONS} ${CLANG_SPECIFIC_OPTIONS} -std=c2x)
+endif()
+
+set(SOURCE_FILES
+	account/otp.c
+	account/account_notes.c
+	act_comm.c
+	act_enter.c
+	act_info.c
+	act_info2.c
+	act_move.c
+	act_obj.c
+	act_obj2.c
+	act_wiz.c
+	alias.c
+	auction.c
+	autowar.c
+	ban.c
+	bit.c
+	blueprint.c
+	boat.c
+	chat_rooms.c
+	church.c
+	comm.c
+	const.c
+	db.c
+	db2.c
+	drunk.c
+	dungeon.c
+	editors/areas/aedit_common.c
+	editors/areas/aedit.c
+	editors/blueprints/bp_common.c
+    editors/blueprints/bpedit.c
+    editors/blueprints/bsedit.c
+	editors/classes/clsedit_common.c
+	editors/classes/clsedit.c
+	editors/commands/cmdedit_common.c
+    editors/commands/cmdedit.c
+	editors/corpses/corpsedit_common.c
+	editors/corpses/corpsedit.c
+	editors/dialogue/dlgedit_common.c
+	editors/dialogue/dlgedit.c
+	editors/dungeons/dngedit_common.c
+    editors/dungeons/dngedit.c
+	editors/game_settings/gameedit_common.c
+    editors/game_settings/gameedit.c
+	editors/help/hedit_common.c
+    editors/help/hedit.c
+	editors/liquids/liqedit_common.c
+	editors/liquids/liqedit.c
+	editors/materials/matedit_common.c
+	editors/materials/matedit.c
+	editors/mobiles/medit_common.c
+    editors/mobiles/medit.c
+	editors/objects/oedit_common.c
+    editors/objects/oedit.c
+	editors/projects/pedit_common.c
+    editors/projects/pedit.c
+	editors/quests/qedit_common.c
+	editors/quests/qedit.c
+	editors/races/raceedit_common.c
+	editors/races/raceedit.c
+	editors/random_strings/rsgedit_common.c
+    editors/random_strings/rsgedit.c
+	editors/reserved/resedit_common.c
+    editors/reserved/reseedit.c
+	editors/rooms/redit_common.c
+    editors/rooms/redit.c
+    editors/scripting/olc_mpcode.c
+	editors/sectors/sectoredit_common.c
+	editors/sectors/sectoredit.c
+	editors/ships/shedit_common.c
+    editors/ships/shedit.c
+	editors/skills/sgedit.c
+	editors/skills/skedit_common.c
+	editors/skills/skedit.c
+	editors/socials/socedit_common.c
+    editors/socials/socialedit.c
+	editors/tokens/tedit_common.c
+    editors/tokens/tedit.c
+	editors/wilderness/wedit_common.c
+    editors/wilderness/vledit.c
+    editors/wilderness/wedit.c
+	editors/olc_common.c
+	effects.c
+	events.c
+	fight.c
+	fight2.c
+	gq.c
+	handler.c
+	help.c
+	house.c
+	html.c
+	hunt.c
+	interp.c
+	invasion.c
+	item_types.c
+	lookup.c
+	magic.c
+	magic2.c
+	magic_acid.c
+	magic_air.c
+	magic_astral.c
+	magic_blood.c
+	magic_body.c
+	magic_chaos.c
+	magic_cold.c
+	magic_cosmic.c
+	magic_dark.c
+	magic_death.c
+	magic_earth.c
+	magic_energy.c
+	magic_fire.c
+	magic_holy.c
+	magic_law.c
+	magic_light.c
+	magic_mana.c
+	magic_metal.c
+	magic_mind.c
+	magic_nature.c
+	magic_shock.c
+	magic_soul.c
+	magic_sound.c
+	magic_toxin.c
+	magic_water.c
+	mail.c
+	mccp.c
+	mem.c
+	missions.c
+	mount.c
+	music.c
+	nanny.c
+	note.c
+	olc.c
+	olc_act.c
+	olc_act2.c
+	olc_mpcode.c
+	olc_save.c
+	project.c
+	protocol.c
+	quest.c
+	race.c
+	reputation.c
+	save.c
+	scan.c
+	script_commands.c
+	script_comp.c
+	script_const.c
+	script_expand.c
+	script_ifc.c
+	script_mpcmds.c
+	script_opcmds.c
+	script_rpcmds.c
+	script_tpcmds.c
+	script_vars.c
+	scripts.c
+	sectors.c
+	shoot.c
+	skills.c
+	socials.c
+	special.c
+	staff.c
+	stats.c
+	storage.c
+	string.c
+	tables.c
+	tls.c
+	treasuremap.c
+	update.c
+	weather.c
+	wilds.c
+)
+
+add_executable(sent ${SOURCE_FILES})
+
+target_compile_definitions(sent PRIVATE
+    VERSION="${GIT_VERSION}"
+    BUILD_DATE="${CUR_BUILD_DATE}"
+    COMMIT="${GIT_URL}"
+)
+
+# Libraries: Using the more comprehensive list from GCC Makefile
+# pthread z m rt ssl crypto dl crypt quickmail cotp qrencode png
+target_link_libraries (sent PRIVATE pthread z m rt ssl crypto dl crypt quickmail cotp qrencode png)
+
+# Install step (optional, example)
+# install(TARGETS sent DESTINATION bin)

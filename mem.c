@@ -3157,8 +3157,8 @@ void free_auto_war( AUTO_WAR *m_auto_war )
     while( m_auto_war->team_players != NULL )
     {
 	stop_fighting( m_auto_war->team_players, false);
-	act( "{D$n disappears in puff of smoke.{x", m_auto_war->team_players, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM );
-	act( "You have been transported to Plith.", m_auto_war->team_players, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR );
+	act( "{D$n disappears in puff of smoke.{x", m_auto_war->team_players, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL );
+	act( "You have been transported to Plith.", m_auto_war->team_players, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL );
 	char_from_room( m_auto_war->team_players );
 	char_to_room( m_auto_war->team_players, room_index_temple );
 	do_function( m_auto_war->team_players, &do_look, "auto");
@@ -8598,6 +8598,32 @@ ACCOUNT_CHARACTER *new_account_character()
     acct_char->deleted = false;
     acct_char->delete_time = 0;
 
+
+    // Authentication Details
+    acct_char->pwd = str_dup("");
+    acct_char->pwd_vers = 0;
+    acct_char->old_pwd = str_dup("");
+    acct_char->reset_code = str_dup("");
+    acct_char->reset_time = 0;
+    acct_char->reset_state = 0;
+    
+    // MFA
+    acct_char->mfa_key = str_dup("");
+    acct_char->mfa_enabled = false;
+    acct_char->mfa_pending_key = str_dup("");
+    for (int i = 0; i < MFA_RECOVERY_CODES; i++) {
+        acct_char->recovery_codes[i] = NULL;
+        acct_char->recovery_used[i] = false;
+    }
+    
+    // Email
+    acct_char->email = str_dup("");
+    acct_char->email_verified = false;
+    acct_char->pending_email = str_dup("");
+    acct_char->email_verification_code = str_dup("");
+    acct_char->email_verification_time = 0;
+    acct_char->email_verification_last_sent = 0;
+
     return acct_char;
 }
 
@@ -8617,6 +8643,25 @@ void free_account_character(ACCOUNT_CHARACTER *acct_char)
     if (acct_char->last_area)   free_string(acct_char->last_area);
     if (acct_char->last_region) free_string(acct_char->last_region);
     if (acct_char->last_host)   free_string(acct_char->last_host);
+
+    // Free authentication details
+    if (acct_char->pwd)         free_string(acct_char->pwd);
+    if (acct_char->old_pwd)     free_string(acct_char->old_pwd);
+    if (acct_char->reset_code)  free_string(acct_char->reset_code);
+    
+    // Free MFA
+    if (acct_char->mfa_key)     free_string(acct_char->mfa_key);
+    if (acct_char->mfa_pending_key) free_string(acct_char->mfa_pending_key);
+    
+    for (int i = 0; i < MFA_RECOVERY_CODES; i++) {
+        if (acct_char->recovery_codes[i]) 
+            free_string(acct_char->recovery_codes[i]);
+    }
+    
+    // Free email details
+    if (acct_char->email)       free_string(acct_char->email);
+    if (acct_char->pending_email) free_string(acct_char->pending_email);
+    if (acct_char->email_verification_code) free_string(acct_char->email_verification_code);
 
     // Zero the struct for safety (optional, but good practice)
     memset(acct_char, 0, sizeof(*acct_char));

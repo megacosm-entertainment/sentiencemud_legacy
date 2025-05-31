@@ -383,8 +383,8 @@ memset(&af,0,sizeof(af));
         ch->affected_by[1] = ch->race->aff[1];
 
 	if (!silent) {
-	    act("$n winces in pain as $e constrains the demon inside $m.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
-	    act("You constrain the demon inside you.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+	    act("$n winces in pain as $e constrains the demon inside $m.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
+	    act("You constrain the demon inside you.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 	}
     }
     else
@@ -398,20 +398,20 @@ memset(&af,0,sizeof(af));
 	{
 	    if (!silent) {
 		send_to_char("{YYou feel the demon inside you taking control.{x\n\r", ch);
-		act("{Y$n's eyes turn dark red.{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+		act("{Y$n's eyes turn dark red.{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
 		if (!IS_REMORT(ch))
 		{
-		    act("{RSharp black spikes rip up out from your body as you take on the form of the Slayer!{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
-		    sprintf(buf, "{RSharp black spikes rip up out from %s's torso as $e takes on the form of the Slayer!{x",ch->name);
+		    act("{RSharp black spikes rip up out from your body as you take on the form of the Slayer!{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+		    sprintf(buf, "{RSharp black spikes rip up out from %s's torso as $e %s on the form of the Slayer!{x",ch->name, get_verb_form(ch, "takes", "take"));
 		}
 		else
 		{
-		    act("{RSharp black spikes rip up out from your body as you take on the form of the Changeling!{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
-		    sprintf(buf, "{RSharp black spikes rip up out from %s's torso as $e takes on the form of the Changeling!{x",ch->name);
+		    act("{RSharp black spikes rip up out from your body as you take on the form of the Changeling!{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+		    sprintf(buf, "{RSharp black spikes rip up out from %s's torso as $e %s on the form of the Changeling!{x",ch->name, get_verb_form(ch, "takes", "take"));
 		}
 
-		act(buf, ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+		act(buf, ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 	    }
 	}
 	else
@@ -419,7 +419,7 @@ memset(&af,0,sizeof(af));
 	    if (!silent) {
 		send_to_char("{RYou become a Werewolf!{x\n\r", ch);
 		sprintf(buf, "{R%s shifts into a Werewolf!{x", ch->name);
-		act(buf, ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+		act(buf, ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 	    }
 	}
 
@@ -595,7 +595,7 @@ void do_shape(CHAR_DATA *ch, char *argument)
 
 	lev = (ch->tot_level + (IS_REMORT(ch) ? ch->tot_level/3 : 0)) * skill / 100;
 	if (pMob->tot_level > lev) {
-		act("$N is too powerful for you to imitate.", ch, pMob, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+		act("$N is too powerful for you to imitate.", ch, pMob, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		return;
 	}
 
@@ -606,12 +606,12 @@ void do_shape(CHAR_DATA *ch, char *argument)
 
 	send_to_char("{YYou concentrate for a minute or two.{x\n\r", ch);
 
-	act("$n's eyes turn a misty white.{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+	act("$n's eyes turn a misty white.{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
 	sprintf(buf, "{YYou twist your body into the shape of %s!\n\r{x", pMob->short_descr);
 	send_to_char(buf, ch);
 
-	act("{YThere is a puff of smoke as $n turns into $t!{x", ch, NULL, NULL, NULL, NULL, pMob->short_descr, NULL, TO_ROOM);
+	act("{YThere is a puff of smoke as $n turns into $t!{x", ch, NULL, NULL, NULL, NULL, pMob->short_descr, NULL, TO_ROOM, NULL, NULL);
 
 	ch->morphed = true;
 	ch->short_descr = str_dup(pMob->short_descr);
@@ -630,7 +630,7 @@ void set_pk_timer(CHAR_DATA *ch, CHAR_DATA *victim, int time)
 	}
 
 	send_to_char("{RYou feel a swirl of dangerous energy surrounding you!{x\n\r", ch);
-	act("{RA swirl of dangerous energy surrounds $n!", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+	act("{RA swirl of dangerous energy surrounds $n!", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 	ch->pk_timer = PULSE_VIOLENCE * 4;
 }
 

@@ -38,12 +38,12 @@
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
-#include "merc.h"
-#include "interp.h"
-#include "tables.h"
-#include "olc.h"
-#include "recycle.h"
-#include "scripts.h"
+#include "../../merc.h"
+#include "../../interp.h"
+#include "../../tables.h"
+#include "../../olc.h"
+#include "../../recycle.h"
+#include "../../scripts.h"
 
 
 /* Editor functions */
@@ -55,6 +55,7 @@ GAMEEDIT(gameedit_history);
 GAMEEDIT(gameedit_view);
 GAMEEDIT(gameedit_rollback);
 GAMEEDIT(gameedit_comment);
+GAMEEDIT(gameedit_pending);
 
 
 
@@ -121,11 +122,14 @@ void do_gameedit(CHAR_DATA *ch, char *argument)
         gameedit_rollback(ch, argument);
     else if (!str_cmp(command, "comment"))
         gameedit_comment(ch, argument);
+    else if (!str_cmp(command, "pending")) 
+        gameedit_pending(ch, argument);
     else {
         send_to_char("Syntax: gameedit show [category|setting]\n\r", ch);
         send_to_char("        gameedit set <setting> <value>\n\r", ch);
         send_to_char("        gameedit confirm\n\r", ch);
         send_to_char("        gameedit revert\n\r", ch);
+        send_to_char("        gameedit pending\n\r", ch);
         send_to_char("        gameedit history [limit]\n\r", ch);
         send_to_char("        gameedit view <changeset_id>\n\r", ch);
         send_to_char("        gameedit rollback <changeset_id>\n\r", ch);
@@ -149,13 +153,12 @@ GAMEEDIT(gameedit_show)
     buffer = new_buf();
 
     if (argument[0] == '\0') {
-        /* Show all categories */
+        // Show all categories
         for (i = 0; i < SETTING_CAT_MAX; i++) {
             gameedit_display_category(buffer, ch, i);
         }
-    }
-    else {
-        /* Check if it's a category name */
+    } else {
+        // Check if it's a category name
         for (i = 0; i < SETTING_CAT_MAX; i++) {
             if (!str_prefix(argument, setting_category_names[i])) {
                 gameedit_display_category(buffer, ch, i);
@@ -163,7 +166,8 @@ GAMEEDIT(gameedit_show)
                 break;
             }
         }
-        /* If not a category, look for settings matching the prefix */
+
+        // If not a category, look for settings matching the prefix
         if (!found) {
             int match_count = 0, last_match = -1;
             for (i = 0; game_settings_table[i].name != NULL; i++) {
@@ -177,183 +181,197 @@ if (match_count == 1) {
     setting = &game_settings_table[last_match];
     char formatted_value[MAX_STRING_LENGTH];
     char pending_value[MAX_STRING_LENGTH] = "";
-    char desc_line[80];
+    char desc_line[81];
     int desc_len;
 
-// Top border
-snprintf(buf, sizeof(buf), "{Y+----------------------------------------------------------------------------+{x\n\r");
-add_buf(buffer, buf);
-
-// Setting name, centered
-int name_len = strlen_no_colours(setting->name);
-int name_pad = (78 - name_len) / 2;
-snprintf(buf, sizeof(buf), "{Y|%*s%-*.*s%*s|{x\n\r", name_pad, "", name_len, name_len, setting->name, 78 - name_pad - name_len, "");
-add_buf(buffer, buf);
-
-// Info section (2 columns)
-snprintf(buf, sizeof(buf), "{Y+--------------------+---------------------------------------------------------+{x\n\r");
-add_buf(buffer, buf);
-
-// Fixed width for both columns, with proper padding and truncation
-snprintf(buf, sizeof(buf), "{Y| %-18.18s | %-55.55s |{x\n\r", "Category", setting_category_names[setting->category]);
-add_buf(buffer, buf);
-snprintf(buf, sizeof(buf), "{Y| %-18.18s | %-55.55s |{x\n\r", "Type", setting_type_names[setting->type]);
-add_buf(buffer, buf);
-snprintf(buf, sizeof(buf), "{Y| %-18.18s | %-55.55s |{x\n\r", "OLC Settable", setting->olc_settable ? "Yes" : "No");
-add_buf(buffer, buf);
-snprintf(buf, sizeof(buf), "{Y| %-18.18s | %-55.55s |{x\n\r", "Requires Reboot", setting->requires_reboot ? "Yes" : "No");
-add_buf(buffer, buf);
-snprintf(buf, sizeof(buf), "{Y| %-18.18s | %-55.55s |{x\n\r", "Sensitive", setting->sensitive ? "Yes" : "No");
-add_buf(buffer, buf);
-
-// Section divider
-snprintf(buf, sizeof(buf), "{Y+--------------------+---------------------------------------------------------+{x\n\r");
-add_buf(buffer, buf);
-
-// Description (wrap to 76 chars per line)
-const char *desc = setting->help;
-while (*desc) {
-    for (desc_len = 0; desc_len < 76 && desc[desc_len] && desc[desc_len] != '\n'; ++desc_len);
-    strncpy(desc_line, desc, desc_len);
-    desc_line[desc_len] = '\0';
-    snprintf(buf, sizeof(buf), "{Y| %-76.76s |{x\n\r", desc_line);
+    // Top border (80 columns)
+    snprintf(buf, sizeof(buf), "{Y+------------------------------------------------------------------------------+{x\n\r");
     add_buf(buffer, buf);
-    desc += desc_len;
-    if (*desc == '\n') ++desc;
-}
 
-// Section divider
-snprintf(buf, sizeof(buf), "{Y+----------------------------------------------------------------------------+{x\n\r");
-add_buf(buffer, buf);
+    // Setting name, centered (80 columns)
+    int name_len = strlen_no_colours(setting->name);
+    int name_pad = (78 - name_len) / 2;
+    snprintf(buf, sizeof(buf), "{Y|%*s%-*.*s%*s|{x\n\r", name_pad, "", name_len, name_len, setting->name, 78 - name_pad - name_len, "");
+    add_buf(buffer, buf);
 
-// Current Value - ensure proper padding
-if (setting->sensitive && ch->pcdata->security < 10) {
-    snprintf(formatted_value, sizeof(formatted_value), "{D*****{x");
-} else {
-    switch (setting->type) {
-        case SETTING_TYPE_BOOL:
-            snprintf(formatted_value, sizeof(formatted_value), "%s", *(bool *)setting->ptr ? "{Gtrue{x" : "{Rfalse{x");
-            break;
-        case SETTING_TYPE_INT:
-            snprintf(formatted_value, sizeof(formatted_value), "{Y%d{x", *(int *)setting->ptr);
-            break;
-        case SETTING_TYPE_STRING:
-            if (*(char **)setting->ptr && **(char **)setting->ptr)
-                snprintf(formatted_value, sizeof(formatted_value), "{W%s{x", *(char **)setting->ptr);
-            else
-                snprintf(formatted_value, sizeof(formatted_value), "{D(empty){x");
-            break;
-        default:
-            snprintf(formatted_value, sizeof(formatted_value), "{D(unknown type){x");
-            break;
-    }
-}
+    // Info section (2 columns, 20+59+1=80)
+    snprintf(buf, sizeof(buf), "{Y+--------------------+---------------------------------------------------------+{x\n\r");
+    add_buf(buffer, buf);
 
-// Calculate visible length for proper padding
-int val_vis_len = strlen_no_colours(formatted_value);
-int val_pad = 61 - val_vis_len;
-if (val_pad < 0) val_pad = 0;
-snprintf(buf, sizeof(buf), "{Y| Current Value: %-61.61s|{x\n\r", formatted_value);
-add_buf(buffer, buf);
+    snprintf(buf, sizeof(buf), "{Y| %-20.20s| %-55.55s|{x\n\r", "Category", setting_category_names[setting->category]);
+    add_buf(buffer, buf);
+    snprintf(buf, sizeof(buf), "{Y| %-20.20s| %-55.55s|{x\n\r", "Type", setting_type_names[setting->type]);
+    add_buf(buffer, buf);
+    snprintf(buf, sizeof(buf), "{Y| %-20.20s| %-55.55s|{x\n\r", "OLC Settable", setting->olc_settable ? "Yes" : "No");
+    add_buf(buffer, buf);
+    snprintf(buf, sizeof(buf), "{Y| %-20.20s| %-55.55s|{x\n\r", "Requires Reboot", setting->requires_reboot ? "Yes" : "No");
+    add_buf(buffer, buf);
+    snprintf(buf, sizeof(buf), "{Y| %-20.20s| %-55.55s|{x\n\r", "Sensitive", setting->sensitive ? "Yes" : "No");
+    add_buf(buffer, buf);
 
-// Pending Value (if any)
-ITERATOR it;
-GAME_SETTING_CHANGE *change;
-iterator_start(&it, pending_changes);
-while ((change = (GAME_SETTING_CHANGE *)iterator_nextdata(&it))) {
-    if (change->setting == setting) {
-        if (setting->sensitive && ch->pcdata->security < 10) {
-            snprintf(pending_value, sizeof(pending_value), "{D*****{x");
-        } else {
-            snprintf(pending_value, sizeof(pending_value), "{Y%s{x", change->value);
-        }
-        val_vis_len = strlen_no_colours(pending_value);
-        val_pad = 61 - val_vis_len;
-        if (val_pad < 0) val_pad = 0;
-        snprintf(buf, sizeof(buf), "{Y| Pending Value: %-61.61s|{x\n\r", pending_value);
+    // Section divider (80 columns)
+    snprintf(buf, sizeof(buf), "{Y+--------------------+---------------------------------------------------------+{x\n\r");
+    add_buf(buffer, buf);
+
+    // Description (wrap to 78 chars per line, 80 with borders)
+    const char *desc = setting->help;
+    while (*desc) {
+        for (desc_len = 0; desc_len < 77 && desc[desc_len] && desc[desc_len] != '\n'; ++desc_len);
+        strncpy(desc_line, desc, desc_len);
+        desc_line[desc_len] = '\0';
+        snprintf(buf, sizeof(buf), "{Y| %-77.77s|{x\n\r", desc_line);
         add_buf(buffer, buf);
-        break;
+        desc += desc_len;
+        if (*desc == '\n') ++desc;
     }
-}
-iterator_stop(&it);
 
-// Section divider
-snprintf(buf, sizeof(buf), "{Y+----------------------------------------------------------------------------+{x\n\r");
-add_buf(buffer, buf);
-
-// Usage/help - properly calculate padding for each type's format string
-if (setting->olc_settable) {
-    char usage[MAX_STRING_LENGTH];
-    switch (setting->type) {
-        case SETTING_TYPE_BOOL:
-            snprintf(usage, sizeof(usage), "Usage: {Wgameedit set %s [true|false|yes|no|on|off|1|0]{x", setting->name);
-            break;
-        case SETTING_TYPE_INT:
-            snprintf(usage, sizeof(usage), "Usage: {Wgameedit set %s <number>{x", setting->name);
-            break;
-        case SETTING_TYPE_STRING:
-            snprintf(usage, sizeof(usage), "Usage: {Wgameedit set %s <text>{x", setting->name);
-            break;
-        default:
-            snprintf(usage, sizeof(usage), "Usage: {Wgameedit set %s <value>{x", setting->name);
-            break;
-    }
-    int usage_len = strlen_no_colours(usage);
-    int usage_pad = 76 - usage_len;
-    if (usage_pad < 0) usage_pad = 0;
-    snprintf(buf, sizeof(buf), "{Y| %-76.76s |{x\n\r", usage);
+    // Section divider (80 columns)
+    snprintf(buf, sizeof(buf), "{Y+------------------------------------------------------------------------------+{x\n\r");
     add_buf(buffer, buf);
-}
 
-// Bottom border
-snprintf(buf, sizeof(buf), "{Y+----------------------------------------------------------------------------+{x\n\r");
-add_buf(buffer, buf);
+    // Current Value (pad/truncate to 65 chars, 80 with border and label)
+    if (setting->sensitive && ch->pcdata->security < 10) {
+        snprintf(formatted_value, sizeof(formatted_value), "{D*****{x");
+    } else {
+        switch (setting->type) {
+            case SETTING_TYPE_BOOL:
+                snprintf(formatted_value, sizeof(formatted_value), "%s", *(bool *)setting->ptr ? "{Gtrue{x" : "{Rfalse{x");
+                break;
+            case SETTING_TYPE_INT:
+                snprintf(formatted_value, sizeof(formatted_value), "{Y%d{x", *(int *)setting->ptr);
+                break;
+            case SETTING_TYPE_STRING:
+                if (*(char **)setting->ptr && **(char **)setting->ptr)
+                    snprintf(formatted_value, sizeof(formatted_value), "{W%s{x", *(char **)setting->ptr);
+                else
+                    snprintf(formatted_value, sizeof(formatted_value), "{D(empty){x");
+                break;
+            case SETTING_TYPE_EXTSTR:
+                if (*(char **)setting->ptr && **(char **)setting->ptr) {
+                    char preview[200];
+                    strncpy(preview, *(char **)setting->ptr, 180);
+                    preview[180] = '\0';
+                    // Replace newlines with spaces for display
+                    for (int k = 0; preview[k]; k++)
+                        if (preview[k] == '\n' || preview[k] == '\r')
+                            preview[k] = ' ';
+                    if (strlen(*(char **)setting->ptr) > 180)
+                        strcat(preview, "...");
+                    snprintf(formatted_value, sizeof(formatted_value), "{W%s{x", preview);
+                } else
+                    snprintf(formatted_value, sizeof(formatted_value), "{D(empty){x");
+                break;
+            case SETTING_TYPE_FLOAT:
+                snprintf(formatted_value, sizeof(formatted_value), "{Y%.4f{x", *(float *)setting->ptr);
+                break;
+            default:
+                snprintf(formatted_value, sizeof(formatted_value), "{D(unknown type){x");
+                break;
+        }
+    }
+    // Pad/truncate to 65 visible chars
+    char display_value[256];
+    int max_vis_len = 66;
+    int vis_len = strlen_no_colours(formatted_value);
+    if (vis_len > max_vis_len) {
+        int trunc_len = colour_trunc_len(formatted_value, max_vis_len - 3);
+        strncpy(display_value, formatted_value, trunc_len);
+        display_value[trunc_len] = '\0';
+        strcat(display_value, "{x...");
+    } else {
+        strcpy(display_value, formatted_value);
+        int pad = max_vis_len - vis_len;
+        while (pad-- > 0) strcat(display_value, " ");
+    }
+    for (int k = 0; display_value[k]; ++k)
+        if (display_value[k] == '\n' || display_value[k] == '\r')
+            display_value[k] = ' ';
+    snprintf(buf, sizeof(buf), "{Y| Current Value: %-66.66s{Y|{x\n\r", display_value);
+    add_buf(buffer, buf);
+
+    // Pending Value (if any, pad/truncate to 65 chars)
+    ITERATOR it;
+    GAME_SETTING_CHANGE *change;
+    iterator_start(&it, pending_changes);
+    while ((change = (GAME_SETTING_CHANGE *)iterator_nextdata(&it))) {
+        if (change->setting == setting) {
+            if (setting->sensitive && ch->pcdata->security < 10) {
+                snprintf(pending_value, sizeof(pending_value), "{D*****{x");
+            } else {
+                snprintf(pending_value, sizeof(pending_value), "{Y%s{x", change->value);
+            }
+            int vis_len = strlen_no_colours(pending_value);
+            if (vis_len > max_vis_len) {
+                int trunc_len = colour_trunc_len(pending_value, max_vis_len - 3);
+                strncpy(display_value, pending_value, trunc_len);
+                display_value[trunc_len] = '\0';
+                strcat(display_value, "{x...");
+            } else {
+                strcpy(display_value, pending_value);
+                int pad = max_vis_len - vis_len;
+                while (pad-- > 0) strcat(display_value, " ");
+            }
+            for (int k = 0; display_value[k]; ++k)
+                if (display_value[k] == '\n' || display_value[k] == '\r')
+                    display_value[k] = ' ';
+            snprintf(buf, sizeof(buf), "{Y| Pending Value: %-66.66s{Y|{x\n\r", display_value);
+            add_buf(buffer, buf);
+            break;
+        }
+    }
+    iterator_stop(&it);
+
+    // Section divider (80 columns)
+    snprintf(buf, sizeof(buf), "{Y+------------------------------------------------------------------------------+{x\n\r");
+    add_buf(buffer, buf);
+
+    // Usage/help (wrap to 78 chars, 80 with borders)
+    if (setting->olc_settable) {
+        char usage[MAX_STRING_LENGTH];
+        switch (setting->type) {
+            case SETTING_TYPE_BOOL:
+                snprintf(usage, sizeof(usage), "Usage: {Wgameedit set %s [true|false|yes|no|on|off|1|0]{x", setting->name);
+                break;
+            case SETTING_TYPE_INT:
+                snprintf(usage, sizeof(usage), "Usage: {Wgameedit set %s <number>{x", setting->name);
+                break;
+            case SETTING_TYPE_STRING:
+                snprintf(usage, sizeof(usage), "Usage: {Wgameedit set %s <text>{x", setting->name);
+                break;
+            case SETTING_TYPE_EXTSTR:
+                snprintf(usage, sizeof(usage), "Usage: {Wgameedit set %s edit{x (opens string editor)", setting->name);
+                break;
+            case SETTING_TYPE_FLOAT:
+                snprintf(usage, sizeof(usage), "Usage: {Wgameedit set %s <number.decimal>{x", setting->name);
+                break;
+            default:
+                snprintf(usage, sizeof(usage), "Usage: {Wgameedit set %s <value>{x", setting->name);
+                break;
+        }
+        int usage_len = strlen_no_colours(usage);
+        int usage_pad = 81 - usage_len;
+        if (usage_pad < 0) usage_pad = 0;
+        snprintf(buf, sizeof(buf), "{Y| %-81.81s{Y|{x\n\r", usage);
+        add_buf(buffer, buf);
+    }
+
+    // Bottom border (80 columns)
+    snprintf(buf, sizeof(buf), "{Y+------------------------------------------------------------------------------+{x\n\r");
+    add_buf(buffer, buf);
 
     found = true;
-} else if (match_count > 1) {
-                // Show a table of all matches
-                bool any = FALSE;
-sprintf(buf, "{Y+------------------------+--------------------------------------+------------+{x\n\r");
-add_buf(buffer, buf);
-sprintf(buf, "{Y| %-23s| %-38s| %-12s|{x\n\r", "Setting Name", "Value", "Type");
-add_buf(buffer, buf);
-sprintf(buf, "{Y+------------------------+--------------------------------------+------------+{x\n\r");
-add_buf(buffer, buf);
-
-                for (i = 0; game_settings_table[i].name != NULL; i++) {
-                    if (!str_prefix(argument, game_settings_table[i].name)) {
-                        gameedit_display_setting(buffer, ch, &game_settings_table[i]);
-                        any = TRUE;
-                    }
-                }
-
-                if (!any) {
-                    sprintf(buf, "{Y║ %-76s║{x\n\r", "No matching settings found.");
-                    add_buf(buffer, buf);
-                }
-
-                // Table footer
-sprintf(buf, "{Y+-------------------------+--------------------------------------+------------+{x\n\r");
-add_buf(buffer, buf);
-
-                // Legend
-sprintf(buf, "  Legend: {R*{x Requires reboot   {MS{x Sensitive setting   {DX{x Not settable via OLC\n\r\n\r");
-add_buf(buffer, buf);
-
-                found = true;
-            }
+}
         }
 
-        /* If not found, try partial match for all settings */
+        // If still not found, try partial match for all settings
         if (!found) {
             bool any = FALSE;
-            // Table header
-snprintf(buf, sizeof(buf), "{Y+-------------------------+--------------------------------------+------------+{x\n\r");
-add_buf(buffer, buf);
-snprintf(buf, sizeof(buf), "{Y| %-23s | %-38s | %-11s |{x\n\r", "Setting Name", "Value", "Type");
-add_buf(buffer, buf);
-snprintf(buf, sizeof(buf), "{Y+-------------------------+--------------------------------------+------------+{x\n\r");
-add_buf(buffer, buf);
+            snprintf(buf, sizeof(buf), "{Y+-------------------------+--------------------------------------+------------+{x\n\r");
+            add_buf(buffer, buf);
+            snprintf(buf, sizeof(buf), "{Y| %-23s | %-36s | %-10s |{x\n\r", "Setting Name", "Value", "Type");
+            add_buf(buffer, buf);
+            snprintf(buf, sizeof(buf), "{Y+-------------------------+--------------------------------------+------------+{x\n\r");
+            add_buf(buffer, buf);
 
             for (i = 0; game_settings_table[i].name != NULL; i++) {
                 if (!str_prefix(argument, game_settings_table[i].name)) {
@@ -363,78 +381,74 @@ add_buf(buffer, buf);
             }
 
             if (!any) {
-                sprintf(buf, "{Y║ %-76s║{x\n\r", "No matching settings found.");
+                snprintf(buf, sizeof(buf), "{Y| %-75s {Y|{x\n\r", "No matching settings found.");
                 add_buf(buffer, buf);
             }
 
             // Table footer
-            sprintf(buf, "{Y╚════════════════════════╩═══════════════════════════════════════╩═════════════╝{x\n\r");
+            snprintf(buf, sizeof(buf), "{Y+-------------------------+--------------------------------------+------------+{x\n\r");
             add_buf(buffer, buf);
 
             // Legend
-            sprintf(buf, "  Legend: {R*{x Requires reboot   {M§{x Sensitive setting   {D✘{x Not settable via OLC\n\r\n\r");
+            snprintf(buf, sizeof(buf), "  Legend: {R*{x Requires reboot   {MS{x Sensitive setting   {DX{x Not settable via OLC\n\r\n\r");
             add_buf(buffer, buf);
         }
     }
 
-if (list_size(pending_changes) > 0) {
-    sprintf(buf, "\n\r{Y+----------------------------------------------------------------------------+{x\n\r");
-    add_buf(buffer, buf);
-    
-    // Center title with proper padding
-    sprintf(buf, "{Y| {RPending Changes{x%-60s |{x\n\r", "");
-    add_buf(buffer, buf);
-    
-    sprintf(buf, "{Y+------------------------------------------------------------------------------+{x\n\r");
-    add_buf(buffer, buf);
-    
-    // Ensure consistent padding for each line
-    char msg[MAX_STRING_LENGTH];
-    int msg_len, msg_pad;
-    
-    sprintf(msg, "There are %d pending changes that need to be confirmed.", list_size(pending_changes));
-    msg_len = strlen(msg);
-    msg_pad = 76 - msg_len;
-    if (msg_pad < 0) msg_pad = 0;
-    snprintf(buf, sizeof(buf), "{Y| %-76.76s |{x\n\r", msg);
-    add_buf(buffer, buf);
-    
-    sprintf(msg, "Use '{Wgameedit confirm{x' to apply changes");
+    // Show pending changes if any
+    if (list_size(pending_changes) > 0) {
+snprintf(buf, sizeof(buf), "\n\r{Y+------------------------------------------------------------------------------+{x\n\r");
+add_buf(buffer, buf);
+
+snprintf(buf, sizeof(buf), "{Y| {RPending Changes{x%-62s{Y|{x\n\r", "");
+add_buf(buffer, buf);
+
+snprintf(buf, sizeof(buf), "{Y+------------------------------------------------------------------------------+{x\n\r");
+add_buf(buffer, buf);
+
+char msg[MAX_STRING_LENGTH];
+int msg_len, msg_pad;
+
+snprintf(msg, sizeof(msg), "There are %d pending changes that need to be confirmed.", list_size(pending_changes));
+msg_len = strlen_no_colours(msg);
+msg_pad = 77 - msg_len;
+if (msg_pad < 0) msg_pad = 0;
+snprintf(buf, sizeof(buf), "{Y| %-*.*s|{x\n\r", 77, 77, msg);
+add_buf(buffer, buf);
+
+snprintf(msg, sizeof(msg), "Use '{Wgameedit confirm{Y' to apply changes");
+msg_len = strlen_no_colours(msg);
+msg_pad = 81 - msg_len;
+if (msg_pad < 0) msg_pad = 0;
+snprintf(buf, sizeof(buf), "{Y| %-*.*s|{x\n\r", 81, 81, msg);
+add_buf(buffer, buf);
+
+if (requires_reboot()) {
+    snprintf(msg, sizeof(msg), "{RWARNING: Some changes require a reboot to take effect.{x");
     msg_len = strlen_no_colours(msg);
-    msg_pad = 76 - msg_len;
+    msg_pad = 81 - msg_len;
     if (msg_pad < 0) msg_pad = 0;
-    snprintf(buf, sizeof(buf), "{Y| %-76.76s |{x\n\r", msg);
-    add_buf(buffer, buf);
-    
-    if (requires_reboot()) {
-        sprintf(msg, "{RWARNING: Some changes require a reboot to take effect.{x");
-        msg_len = strlen_no_colours(msg);
-        msg_pad = 76 - msg_len;
-        if (msg_pad < 0) msg_pad = 0;
-        snprintf(buf, sizeof(buf), "{Y| %-76.76s |{x\n\r", msg);
-        add_buf(buffer, buf);
-        pending_reboot = true;
-    }
-    
-    sprintf(msg, "Use '{Wgameedit revert{x' to discard all pending changes");
-    msg_len = strlen_no_colours(msg);
-    msg_pad = 76 - msg_len;
-    if (msg_pad < 0) msg_pad = 0;
-    snprintf(buf, sizeof(buf), "{Y| %-76.76s |{x\n\r", msg);
-    add_buf(buffer, buf);
-    
-    sprintf(buf, "{Y+------------------------------------------------------------------------------+{x\n\r");
+    snprintf(buf, sizeof(buf), "{Y| %-*.*s{Y|{x\n\r", 81, 81, msg);
     add_buf(buffer, buf);
 }
+
+snprintf(msg, sizeof(msg), "Use '{Wgameedit revert{Y' to discard all pending changes");
+msg_len = strlen_no_colours(msg);
+msg_pad = 81 - msg_len;
+if (msg_pad < 0) msg_pad = 0;
+snprintf(buf, sizeof(buf), "{Y| %-*.*s{Y|{x\n\r", 81, 81, msg);
+add_buf(buffer, buf);
+
+snprintf(buf, sizeof(buf), "{Y+------------------------------------------------------------------------------+{x\n\r");
+add_buf(buffer, buf);
+    }
 
     page_to_char(buf_string(buffer), ch);
     free_buf(buffer);
     return FALSE;
 }
 
-/*
- * Set a setting value
- */
+// Modify the do_gameedit function (in the 'set' section) to handle EXTSTR edit case
 GAMEEDIT(gameedit_set)
 {
     char arg1[MAX_INPUT_LENGTH];
@@ -468,7 +482,16 @@ GAMEEDIT(gameedit_set)
         } else {
             strcpy(arg2, argument);
         }
-    } else {
+    } 
+    else if (setting->type == SETTING_TYPE_EXTSTR) {
+        /* For extended strings, check if they want to edit */
+        if (argument[0] == '\0' || !str_cmp(argument, "edit")) {
+            strcpy(arg2, "edit");
+        } else {
+            strcpy(arg2, argument);
+        }
+    }
+    else {
         if (argument[0] == '\0') {
             send_to_char("Syntax: gameedit set <setting> <value>\n\r", ch);
             return FALSE;
@@ -479,9 +502,7 @@ GAMEEDIT(gameedit_set)
     return gameedit_set_value(ch, setting, arg2);
 }
 
-/*
- * Confirm all pending changes
- */
+// Update the confirm function to handle the new types
 GAMEEDIT(gameedit_confirm)
 {
     ITERATOR it;
@@ -524,8 +545,13 @@ GAMEEDIT(gameedit_confirm)
                 break;
                 
             case SETTING_TYPE_STRING:
+            case SETTING_TYPE_EXTSTR:
                 free_string(*(char **)change->setting->ptr);
                 *(char **)change->setting->ptr = str_dup(change->value);
+                break;
+                
+            case SETTING_TYPE_FLOAT:
+                *(float *)change->setting->ptr = atof(change->value);
                 break;
         }
         
@@ -590,9 +616,6 @@ GAMEEDIT(gameedit_revert)
     return TRUE;
 }
 
-/*
- * Find a setting by name
- */
 bool gameedit_find_setting(CHAR_DATA *ch, char *name, const struct game_setting_type **setting)
 {
     int i;
@@ -616,13 +639,16 @@ bool gameedit_find_setting(CHAR_DATA *ch, char *name, const struct game_setting_
     return FALSE;
 }
 
+/*
+ * Find a setting by name
+ */
 void gameedit_display_setting(BUFFER *buffer, CHAR_DATA *ch, const struct game_setting_type *setting)
 {
     char buf[MAX_STRING_LENGTH];
     char value_str[2048] = "";
-    char type_str[MAX_STRING_LENGTH] = "";
-    
-    // 1. FORMAT THE VALUE COLUMN
+    char type_str[32] = "";
+
+    // Format value
     if (setting->sensitive && ch->pcdata->security < 10) {
         strcpy(value_str, "{D*****{x");
     } else {
@@ -639,23 +665,35 @@ void gameedit_display_setting(BUFFER *buffer, CHAR_DATA *ch, const struct game_s
                 else
                     strcpy(value_str, "{D(empty){x");
                 break;
+            case SETTING_TYPE_EXTSTR:
+                if (*(char **)setting->ptr && **(char **)setting->ptr) {
+                    char preview[50];
+                    strncpy(preview, *(char **)setting->ptr, 45);
+                    preview[45] = '\0';
+                    if (strlen(*(char **)setting->ptr) > 45)
+                        strcat(preview, "...");
+                    sprintf(value_str, "{W%s{x", preview);
+                } else
+                    strcpy(value_str, "{D(empty){x");
+                break;
+            case SETTING_TYPE_FLOAT:
+                sprintf(value_str, "{Y%.4f{x", *(float *)setting->ptr);
+                break;
             default:
                 strcpy(value_str, "{D(unknown){x");
                 break;
         }
     }
-    
-    // Check for pending change
+
+    // Pending change indicator
     if (pending_changes && list_size(pending_changes) > 0) {
         ITERATOR it;
         GAME_SETTING_CHANGE *change;
         iterator_start(&it, pending_changes);
         while ((change = (GAME_SETTING_CHANGE *)iterator_nextdata(&it))) {
             if (change->setting == setting) {
-
                 char old_value[1024];
                 strcpy(old_value, value_str);
-                
                 if (setting->sensitive && ch->pcdata->security < 10) {
                     snprintf(value_str, sizeof(value_str), "%s → {Y*****{x", old_value);
                 } else {
@@ -666,65 +704,55 @@ void gameedit_display_setting(BUFFER *buffer, CHAR_DATA *ch, const struct game_s
         }
         iterator_stop(&it);
     }
-    
-    // 2. FORMAT THE TYPE COLUMN WITH FLAGS
-    const char *type_name = "";
-    switch (setting->type) {
-        case SETTING_TYPE_BOOL:   type_name = "Boolean"; break;
-        case SETTING_TYPE_INT:    type_name = "Integer"; break;
-        case SETTING_TYPE_STRING: type_name = "String";  break;
-        default:                  type_name = "Unknown"; break;
-    }
-    
-    // Add colored type name and flags
-    sprintf(type_str, "{B%s{x", type_name);
-    
-    // Add flags at the end
-    if (setting->requires_reboot) strcat(type_str, "*");
-    if (setting->sensitive) strcat(type_str, "S");
-    if (!setting->olc_settable) strcat(type_str, "X");
-    
-    // 3. HANDLE VALUE TRUNCATION (if needed)
-    char clean_value[MAX_STRING_LENGTH];
-    int max_vis_len = 36;
-    int actual_vis_len = strlen_no_colours(value_str);
-    
-    if (actual_vis_len <= max_vis_len) {
-        strcpy(clean_value, value_str);
-        // Pad with spaces to exact width
-        int pad = max_vis_len - actual_vis_len;
-        while (pad-- > 0) strcat(clean_value, " ");
-    } else {
-        // Truncate to max_vis_len - 5 for ellipsis
-        int trunc_len = colour_trunc_len(value_str, max_vis_len - 5);
-        strncpy(clean_value, value_str, trunc_len);
-        clean_value[trunc_len] = '\0';
-        
-        // Fix truncated color codes
-        int i = strlen(clean_value) - 1;
-        while (i >= 0 && clean_value[i] == '{') {
-            clean_value[i] = '\0';
-            i--;
-        }
-        
-        strcat(clean_value, ". . .");
-        
-        // Pad with spaces to exact width
-        int pad = max_vis_len - strlen_no_colours(clean_value);
-        while (pad-- > 0) strcat(clean_value, " ");
-    }
-    
-    // Replace newlines with spaces
-    for (int k = 0; clean_value[k]; ++k) {
-        if (clean_value[k] == '\n' || clean_value[k] == '\r')
-            clean_value[k] = ' ';
-    }
-    
-    // 4. OUTPUT THE ROW WITH EXACT WIDTHS
-snprintf(buf, sizeof(buf), 
-    "{Y| %-23.23s | %-35.35s | %-11.11s |{x\n\r",
-    setting->name, clean_value, type_str);
-    
+
+// Format type column with modifiers
+const char *type_name = "";
+switch (setting->type) {
+    case SETTING_TYPE_BOOL:   type_name = "Boolean"; break;
+    case SETTING_TYPE_INT:    type_name = "Integer"; break;
+    case SETTING_TYPE_STRING: type_name = "String";  break;
+    case SETTING_TYPE_EXTSTR: type_name = "ExtStr"; break;
+    case SETTING_TYPE_FLOAT:  type_name = "Float";   break;
+    default:                  type_name = "Unknown"; break;
+}
+char modifiers[16] = "";
+if (setting->requires_reboot) strcat(modifiers, "{R*{x");
+if (setting->sensitive) strcat(modifiers, "{MS{x");
+if (!setting->olc_settable) strcat(modifiers, "{DX{x");
+
+// Calculate visible lengths
+int type_vis = strlen_no_colours(type_name);
+int mod_vis = strlen_no_colours(modifiers);
+int pad_middle = 14 - type_vis - mod_vis;
+if (pad_middle < 0) pad_middle = 0;
+
+// Build the type string: type name left, modifiers right
+snprintf(type_str, sizeof(type_str), "{B%s{x%*s%s", type_name, pad_middle, "", modifiers);
+
+// Truncate and pad value for display (39 visible chars for 80-column table)
+char display_value[256];
+int max_vis_len = 40;
+int vis_len = strlen_no_colours(value_str);
+if (vis_len > max_vis_len) {
+    int trunc_len = colour_trunc_len(value_str, max_vis_len - 3);
+    strncpy(display_value, value_str, trunc_len);
+    display_value[trunc_len] = '\0';
+    strcat(display_value, "{x...");
+} else {
+    strcpy(display_value, value_str);
+    // Pad with spaces to align type column if needed
+    int pad = max_vis_len - vis_len;
+    while (pad-- > 0) strcat(display_value, " ");
+}
+for (int k = 0; display_value[k]; ++k)
+{
+    if (display_value[k] == '\n' || display_value[k] == '\r')
+        display_value[k] = ' ';
+}
+    // Output the row (80 columns: 23 + 41 + 12 + separators)
+    snprintf(buf, sizeof(buf),
+        "{Y| %-23.23s {Y| %-39.39s {Y| %-14.14s {Y|{x\n\r",
+        setting->name, display_value, type_str);
     add_buf(buffer, buf);
 }
 
@@ -736,46 +764,44 @@ void gameedit_display_category(BUFFER *buffer, CHAR_DATA *ch, int category)
     char buf[MAX_STRING_LENGTH];
     int i;
     bool found = FALSE;
-    
-snprintf(buf, sizeof(buf), "{Y+-----------------------------------------------------------------------------+{x\n\r");
-add_buf(buffer, buf);
-    
 
-int cat_len = strlen_no_colours(setting_category_names[category]);
-int cat_pad = (78 - cat_len) / 2;
-snprintf(buf, sizeof(buf), "{Y|%*s%-*.*s%*s|{x\n\r", cat_pad, "", cat_len, cat_len, setting_category_names[category], 78 - cat_pad - cat_len, "");add_buf(buffer, buf);
-    //sprintf(buf, "{Y║ %-76s ║{x\n\r", setting_category_names[category]);
-    //add_buf(buffer, buf);
-    
-snprintf(buf, sizeof(buf), "{Y+-------------------------+--------------------------------------+------------+{x\n\r");
-add_buf(buffer, buf);
-snprintf(buf, sizeof(buf), "{Y| %-23s | %-35s | %-11s |{x\n\r", "Setting Name", "Value", "Type");
-add_buf(buffer, buf);
-snprintf(buf, sizeof(buf), "{Y+-------------------------+--------------------------------------+------------+{x\n\r");
-add_buf(buffer, buf);
-    
+    // Table header
+    snprintf(buf, sizeof(buf), "{Y+-------------------------+--------------------------------------+------------+{x\n\r");
+    add_buf(buffer, buf);
+
+    // Centered category name
+    int cat_len = strlen_no_colours(setting_category_names[category]);
+    int cat_pad = (77 - cat_len) / 2;
+    snprintf(buf, sizeof(buf), "{Y|%*s%-*.*s%*s|{x\n\r", cat_pad, "", cat_len, cat_len, setting_category_names[category], 77 - cat_pad - cat_len, "");
+    add_buf(buffer, buf);
+
+    snprintf(buf, sizeof(buf), "{Y+-------------------------+--------------------------------------+------------+{x\n\r");
+    add_buf(buffer, buf);
+    snprintf(buf, sizeof(buf), "{Y| %-23s | %-36s | %-10s |{x\n\r", "Setting Name", "Value", "Type");
+    add_buf(buffer, buf);
+    snprintf(buf, sizeof(buf), "{Y+-------------------------+--------------------------------------+------------+{x\n\r");
+    add_buf(buffer, buf);
+
     for (i = 0; game_settings_table[i].name != NULL; i++) {
         if (game_settings_table[i].category == category) {
             gameedit_display_setting(buffer, ch, &game_settings_table[i]);
             found = TRUE;
         }
     }
-    
+
     if (!found) {
-sprintf(buf, "{Y|{x  %-76s  {Y|{x\n\r", "No settings in this category.");
-add_buf(buffer, buf);
+        snprintf(buf, sizeof(buf), "{Y| %-73s |{x\n\r", "No settings in this category.");
+        add_buf(buffer, buf);
     }
-    
-sprintf(buf, "{Y+-------------------------+--------------------------------------+------------+{x\n\r");
-add_buf(buffer, buf);
-    
-    /* Add a legend for the symbols */
-sprintf(buf, "  Legend: {R*{x Requires reboot   {MS{x Sensitive setting   {DX{x Not settable via OLC\n\r\n\r");
-add_buf(buffer, buf);
+
+    snprintf(buf, sizeof(buf), "{Y+-------------------------+--------------------------------------+------------+{x\n\r");
+    add_buf(buffer, buf);
+
+    // Legend
+    snprintf(buf, sizeof(buf), "  Legend: {R*{x Requires reboot   {MS{x Sensitive setting   {DX{x Not settable via OLC\n\r\n\r");
+    add_buf(buffer, buf);
 }
-/*
- * Set a setting value (adds to pending changes)
- */
+
 bool gameedit_set_value(CHAR_DATA *ch, const struct game_setting_type *setting, char *value)
 {
     GAME_SETTING_CHANGE *change;
@@ -800,6 +826,55 @@ bool gameedit_set_value(CHAR_DATA *ch, const struct game_setting_type *setting, 
             }
             break;
             
+        case SETTING_TYPE_FLOAT:
+            {
+                char *p;
+                bool valid = TRUE;
+                int decimal_points = 0;
+                
+                // Check if it's a valid float format (digits, maybe a decimal point, more digits)
+                for (p = value; *p != '\0'; p++) {
+                    if (*p == '.') {
+                        decimal_points++;
+                        if (decimal_points > 1) {
+                            valid = FALSE;
+                            break;
+                        }
+                    } else if (*p == '-' && p == value) {
+                        // Negative sign allowed only at start
+                        continue;
+                    } else if (!isdigit(*p)) {
+                        valid = FALSE;
+                        break;
+                    }
+                }
+                
+                if (!valid) {
+                    send_to_char("This setting requires a floating point number.\n\r", ch);
+                    return FALSE;
+                }
+            }
+            break;
+
+        case SETTING_TYPE_EXTSTR:
+            // For extended strings, we'll handle editing differently
+            if (!str_cmp(value, "edit")) {
+                if (!setting->olc_settable) {
+                    send_to_char("This setting cannot be changed through OLC.\n\r", ch);
+                    return FALSE;
+                }
+                
+                // Set up the string editor
+                ch->desc->pString = (char **)setting->ptr;
+                ch->desc->editor = ED_GAMESETTING;
+                ch->desc->editor_ptr = (void *)setting; // Store setting for later reference
+                
+                string_append(ch, (char **)setting->ptr);
+                return TRUE;
+            }
+            // Otherwise, treat it like a regular string
+            break;
+            
         case SETTING_TYPE_STRING:
             /* No validation needed for string types */
             break;
@@ -808,6 +883,12 @@ bool gameedit_set_value(CHAR_DATA *ch, const struct game_setting_type *setting, 
     /* Initialize pending changes list if needed */
     if (!pending_changes) {
         pending_changes = list_create(false);
+    }
+    
+    // Handle special case for EXTSTR when not using 'edit'
+    if (setting->type == SETTING_TYPE_EXTSTR && str_cmp(value, "edit")) {
+        send_to_char("Extended string settings must be edited with 'gameedit set <setting> edit'.\n\r", ch);
+        return FALSE;
     }
     
     /* Check if we already have a pending change for this setting */
@@ -1072,6 +1153,151 @@ GAMEEDIT(gameedit_view)
 }
 
 /*
+ * Display all pending changes
+ */
+GAMEEDIT(gameedit_pending)
+{
+    BUFFER *buffer;
+    char buf[MAX_STRING_LENGTH];
+    ITERATOR it;
+    GAME_SETTING_CHANGE *change;
+
+    buffer = new_buf();
+
+    if (!pending_changes || list_size(pending_changes) == 0) {
+        add_buf(buffer, "There are no pending game setting changes.\n\r");
+        page_to_char(buf_string(buffer), ch);
+        free_buf(buffer);
+        return TRUE;
+    }
+
+    sprintf(buf, "{YPending Game Setting Changes (%d):{x\n\r", list_size(pending_changes));
+    add_buf(buffer, buf);
+
+    // Table header
+    sprintf(buf, "{Y+------------------------+-------------------------+-------------------------+{x\n\r");
+    add_buf(buffer, buf);
+    sprintf(buf, "{Y| {W%-22s{x | {W%-23s{x | {W%-23s{x |{x\n\r", "Setting Name", "Current Value", "Pending Value");
+    add_buf(buffer, buf);
+    sprintf(buf, "{Y+------------------------+-------------------------+-------------------------+{x\n\r");
+    add_buf(buffer, buf);
+
+    iterator_start(&it, pending_changes);
+    while ((change = (GAME_SETTING_CHANGE *)iterator_nextdata(&it))) {
+        const struct game_setting_type *setting = change->setting;
+        char current_value_str[MAX_STRING_LENGTH];
+        char pending_value_str[MAX_STRING_LENGTH];
+        char display_current_val[MAX_STRING_LENGTH];
+        char display_pending_val[MAX_STRING_LENGTH];
+        int width_current, width_pending;
+        const int max_vis_col_width = 23;
+
+        // Format Current Value
+        if (setting->sensitive && ch->pcdata->security < 10) {
+            strcpy(current_value_str, "{D*****{x");
+        } else {
+            switch (setting->type) {
+                case SETTING_TYPE_BOOL:
+                    sprintf(current_value_str, "%s", *(bool *)setting->ptr ? "{Gtrue{x" : "{Rfalse{x");
+                    break;
+                case SETTING_TYPE_INT:
+                    sprintf(current_value_str, "{Y%d{x", *(int *)setting->ptr);
+                    break;
+                case SETTING_TYPE_STRING:
+                    if (*(char **)setting->ptr && **(char **)setting->ptr)
+                        sprintf(current_value_str, "{W%s{x", *(char **)setting->ptr);
+                    else
+                        strcpy(current_value_str, "{D(empty){x");
+                    break;
+                default:
+                    strcpy(current_value_str, "{D(unknown){x");
+                    break;
+            }
+        }
+
+        // Format Pending Value
+        if (setting->sensitive && ch->pcdata->security < 10) {
+            strcpy(pending_value_str, "{D*****{x");
+        } else {
+            switch (setting->type) {
+                case SETTING_TYPE_BOOL:
+                    if (!str_cmp(change->value, "true") || !str_cmp(change->value, "yes") || !str_cmp(change->value, "on") || !str_cmp(change->value, "1"))
+                        sprintf(pending_value_str, "{G%s{x", change->value);
+                    else
+                        sprintf(pending_value_str, "{R%s{x", change->value);
+                    break;
+                case SETTING_TYPE_INT:
+                     sprintf(pending_value_str, "{Y%s{x", change->value);
+                    break;
+                case SETTING_TYPE_STRING:
+                    if (change->value && change->value[0])
+                        sprintf(pending_value_str, "{W%s{x", change->value);
+                    else
+                        strcpy(pending_value_str, "{D(empty){x");
+                    break;
+                default:
+                     sprintf(pending_value_str, "{M%s{x", change->value);
+                    break;
+            }
+        }
+        
+        // Truncate current_value_str for display
+        if (strlen_no_colours(current_value_str) > max_vis_col_width) {
+            int trunc_len = colour_trunc_len(current_value_str, max_vis_col_width - 3);
+            strncpy(display_current_val, current_value_str, trunc_len);
+            display_current_val[trunc_len] = '\0';
+            if (strlen(display_current_val) > 0 && display_current_val[strlen(display_current_val)-1] == '{') {
+                 display_current_val[strlen(display_current_val)-1] = '\0'; // Avoid broken color code
+            }
+            strcat(display_current_val, "{x...");
+        } else {
+            strcpy(display_current_val, current_value_str);
+        }
+        for (int k = 0; display_current_val[k]; ++k) if (display_current_val[k] == '\n' || display_current_val[k] == '\r') display_current_val[k] = ' ';
+
+        // Truncate pending_value_str for display
+        if (strlen_no_colours(pending_value_str) > max_vis_col_width) {
+            int trunc_len = colour_trunc_len(pending_value_str, max_vis_col_width - 3);
+            strncpy(display_pending_val, pending_value_str, trunc_len);
+            display_pending_val[trunc_len] = '\0';
+            if (strlen(display_pending_val) > 0 && display_pending_val[strlen(display_pending_val)-1] == '{') {
+                 display_pending_val[strlen(display_pending_val)-1] = '\0'; // Avoid broken color code
+            }
+            strcat(display_pending_val, "{x...");
+        } else {
+            strcpy(display_pending_val, pending_value_str);
+        }
+        for (int k = 0; display_pending_val[k]; ++k) if (display_pending_val[k] == '\n' || display_pending_val[k] == '\r') display_pending_val[k] = ' ';
+
+        width_current = max_vis_col_width + (strlen(display_current_val) - strlen_no_colours(display_current_val));
+        width_pending = max_vis_col_width + (strlen(display_pending_val) - strlen_no_colours(display_pending_val));
+
+        sprintf(buf, "{Y| {C%-22.22s{x | %-*.30s | %-*.30s |{x\n\r",
+                setting->name,
+                width_current, display_current_val,
+                width_pending, display_pending_val);
+        add_buf(buffer, buf);
+    }
+    iterator_stop(&it);
+
+    // Table footer
+    sprintf(buf, "{Y+------------------------+-------------------------+-------------------------+{x\n\r");
+    add_buf(buffer, buf);
+
+    if (requires_reboot()) {
+        sprintf(buf, "\n\r{RWARNING: Some pending changes require a reboot to take effect.{x\n\r");
+        add_buf(buffer, buf);
+    }
+    
+    sprintf(buf, "\n\rUse '{Wgameedit confirm{x' to apply these changes or '{Wgameedit revert{x' to discard them.\n\r");
+    add_buf(buffer, buf);
+
+    page_to_char(buf_string(buffer), ch);
+    free_buf(buffer);
+    return TRUE;
+}
+
+/*
  * Rollback to a previous changeset
  */
 GAMEEDIT(gameedit_rollback)
@@ -1251,27 +1477,36 @@ void create_changeset(CHAR_DATA *ch, char *comment)
         
 // In the create_changeset function:
 /* Store the old value */
-switch (change->setting->type) {
-    case SETTING_TYPE_BOOL: {
-        bool current_value = *(bool *)change->setting->ptr;
-        history->old_value = str_dup(current_value ? "true" : "false");
-        break;
+    switch (change->setting->type) {
+        case SETTING_TYPE_BOOL: {
+            bool current_value = *(bool *)change->setting->ptr;
+            history->old_value = str_dup(current_value ? "true" : "false");
+            break;
+        }
+        
+        case SETTING_TYPE_INT: {
+            int current_value = *(int *)change->setting->ptr;
+            char temp_buf[MAX_STRING_LENGTH];
+            sprintf(temp_buf, "%d", current_value);
+            history->old_value = str_dup(temp_buf);
+            break;
+        }
+        
+        case SETTING_TYPE_STRING:
+        case SETTING_TYPE_EXTSTR: {
+            char *current_value = *(char **)change->setting->ptr;
+            history->old_value = str_dup(current_value ? current_value : "");
+            break;
+        }
+        
+        case SETTING_TYPE_FLOAT: {
+            float current_value = *(float *)change->setting->ptr;
+            char temp_buf[MAX_STRING_LENGTH];
+            sprintf(temp_buf, "%.4f", current_value);
+            history->old_value = str_dup(temp_buf);
+            break;
+        }
     }
-    
-    case SETTING_TYPE_INT: {
-        int current_value = *(int *)change->setting->ptr;
-        char temp_buf[MAX_STRING_LENGTH];
-        sprintf(temp_buf, "%d", current_value);
-        history->old_value = str_dup(temp_buf);
-        break;
-    }
-    
-    case SETTING_TYPE_STRING: {
-        char *current_value = *(char **)change->setting->ptr;
-        history->old_value = str_dup(current_value ? current_value : "");
-        break;
-    }
-}
         
         /* Store the new value */
         history->new_value = str_dup(change->value);
@@ -1492,7 +1727,7 @@ void load_changesets(void)
             changeset->comment = str_dup("");
             
             changesets[changeset_count++] = changeset;
-            log_string(formatf("Processing changeset #%d", changeset_count));
+//            log_string(formatf("Processing changeset #%d", changeset_count));
             fMatch = TRUE;
             continue;
         }
@@ -1531,12 +1766,12 @@ void load_changesets(void)
                     char *old_value = fread_string(fp);
                     char *new_value = fread_string(fp);
                     
-                    log_string(formatf("Loading change for setting: '%s'", setting_name));
+//                    log_string(formatf("Loading change for setting: '%s'", setting_name));
                     
                     const struct game_setting_type *setting = NULL;
                     if (setting_name && *setting_name) {
                         bool found = gameedit_find_setting(NULL, setting_name, &setting);
-                        log_string(formatf("Setting lookup result: %s", found ? "FOUND" : "NOT FOUND"));
+//                        log_string(formatf("Setting lookup result: %s", found ? "FOUND" : "NOT FOUND"));
                         
                         if (found && setting) {
                             GAME_SETTING_CHANGE_HISTORY *history;
@@ -1649,4 +1884,52 @@ GAMEEDIT(gameedit_comment)
     string_append(ch, &changeset->comment);
     
     return TRUE;
+}
+
+// Add a handler for the string editor for EXTSTR type settings
+void game_settings_string_edit(CHAR_DATA *ch)
+{
+    const struct game_setting_type *setting;
+    GAME_SETTING_CHANGE *change;
+    ITERATOR it;
+    
+    if (!ch->desc || !ch->desc->pString || !ch->desc->editor_ptr) {
+        send_to_char("String editing error.\n\r", ch);
+        return;
+    }
+    
+    setting = (const struct game_setting_type *)ch->desc->editor_ptr;
+    
+    /* Initialize pending changes list if needed */
+    if (!pending_changes) {
+        pending_changes = list_create(false);
+    }
+    
+    /* Check if we already have a pending change for this setting */
+    iterator_start(&it, pending_changes);
+    while ((change = (GAME_SETTING_CHANGE *)iterator_nextdata(&it))) {
+        if (change->setting == setting) {
+            /* Update the existing change */
+            free_string(change->value);
+            change->value = str_dup(*(char **)setting->ptr);
+            iterator_stop(&it);
+            
+            send_to_char("Setting updated in pending changes.\n\r", ch);
+            return;
+        }
+    }
+    iterator_stop(&it);
+    
+    /* Create a new pending change */
+    change = (GAME_SETTING_CHANGE *)alloc_mem(sizeof(GAME_SETTING_CHANGE));
+    change->setting = setting;
+    change->value = str_dup(*(char **)setting->ptr);
+    list_appendlink(pending_changes, change);
+    
+    send_to_char("Setting added to pending changes.\n\r", ch);
+    
+    if (setting->requires_reboot) {
+        send_to_char("{RNote: This setting requires a reboot to take effect.{x\n\r", ch);
+        pending_reboot = true;
+    }
 }

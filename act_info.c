@@ -730,6 +730,27 @@ void show_list_to_char(OBJ_DATA *list, CHAR_DATA *ch, bool fShort,
     free_mem(prgnShow, count * sizeof(int));
 }
 
+void show_llist_to_char(LLIST *llist, CHAR_DATA *ch, bool fShort, bool fShowNothing)
+{
+    OBJ_DATA *head = NULL, *last = NULL, *obj;
+    ITERATOR it;
+    iterator_start(&it, llist);
+    while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+        obj->next_content = NULL;
+        if (!head)
+            head = obj;
+        else
+            last->next_content = obj;
+        last = obj;
+    }
+    iterator_stop(&it);
+
+    show_list_to_char(head, ch, fShort, fShowNothing);
+
+    // Optionally, restore next_content pointers to NULL
+    for (obj = head; obj; obj = obj->next_content)
+        obj->next_content = NULL;
+}
 
 void show_char_to_char_0(CHAR_DATA * victim, CHAR_DATA * ch)
 {
@@ -1058,11 +1079,11 @@ void show_char_to_char_1(CHAR_DATA * victim, CHAR_DATA * ch, bool examine)
     if (can_see(victim, ch) && ch->invis_level < STAFF_IMMORTAL)
     {
 	if (ch == victim)
-	    act("$n looks at $mself.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+	    act("$n looks at $mself.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 	else
 	{
-	    act("$n looks at you.", ch, victim, NULL, NULL, NULL, NULL, NULL, TO_VICT);
-	    act("$n looks at $N.", ch, victim, NULL, NULL, NULL, NULL, NULL, TO_NOTVICT);
+	    act("$n looks at you.", ch, victim, NULL, NULL, NULL, NULL, NULL, TO_VICT, NULL, NULL);
+	    act("$n looks at $N.", ch, victim, NULL, NULL, NULL, NULL, NULL, TO_NOTVICT, NULL, NULL);
 	}
     }
 
@@ -1073,7 +1094,7 @@ void show_char_to_char_1(CHAR_DATA * victim, CHAR_DATA * ch, bool examine)
     else
     {
 	act("You see nothing special about $M.", ch, victim, NULL, NULL, NULL, NULL, NULL,
-	    TO_CHAR);
+	    TO_CHAR, NULL, NULL);
     }
 
     sprintf(name, "%s", victim->name);
@@ -1154,7 +1175,7 @@ void show_char_to_char_1(CHAR_DATA * victim, CHAR_DATA * ch, bool examine)
     {
 	send_to_char("\n\rYou peek at the inventory:\n\r", ch);
 	check_improve(ch, gsk_peek, true, 4);
-	show_list_to_char(victim->carrying, ch, true, true);
+	show_llist_to_char(victim->lcarrying, ch, true, true);
     }
 
 	if( IS_NPC(ch) || !IS_SET(ch->act[1], PLR_NOLORE) || examine )
@@ -1162,7 +1183,7 @@ void show_char_to_char_1(CHAR_DATA * victim, CHAR_DATA * ch, bool examine)
 		if (IS_NPC(victim) && number_percent() < get_skill(ch, gsk_mob_lore))
 		{
 			if (IS_SET(victim->act[0], ACT_NO_LORE) && ch->tot_level <= victim->tot_level)
-				act("\n\r{R$N is too powerful for you to lore.{x", ch, victim, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+				act("\n\r{R$N is too powerful for you to lore.{x", ch, victim, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 			else
 			{
 				send_to_char("\n\r{YYou recognize the following things about this creature:{x\n\r", ch);
@@ -1329,23 +1350,93 @@ void do_scroll(CHAR_DATA * ch, char *argument)
 }
 
 
-void do_socials(CHAR_DATA * ch, char *argument)
-{
+void do_socials(CHAR_DATA *ch, char *argument) {
+    char arg[MAX_INPUT_LENGTH];
     char buf[MAX_STRING_LENGTH];
-    int iSocial;
-    int col;
+    ITERATOR it;
+    SOCIAL_DATA *social;
+    int col = 0;
+    BUFFER *output;
 
-    col = 0;
-    for (iSocial = 0; social_table[iSocial].name[0] != '\0'; iSocial++)
-    {
-	sprintf(buf, "%-12.12s", social_table[iSocial].name);
-	send_to_char(buf, ch);
-	if (++col % 6 == 0)
-	    send_to_char("\n\r", ch);
+    one_argument(argument, arg);
+
+    if (!str_cmp(arg, "show")) {
+        char social_name_arg[MAX_INPUT_LENGTH];
+        argument = one_argument(argument, social_name_arg); // Consume "show"
+        argument = one_argument(argument, social_name_arg); // Get social name
+
+        if (social_name_arg[0] == '\0') {
+            send_to_char("Syntax: socials show <social_name>\n\r", ch);
+            return;
+        }
+
+        social = get_social(social_name_arg);
+        if (!social) {
+            send_to_char("That social does not exist.\n\r", ch);
+            return;
+        }
+
+        output = new_buf();
+        add_buf(output, formatf("{WPreview of social: {Y%s{x\n\r", social->name));
+        add_buf(output, formatf("{WEnabled: {Y%s{x\n\r\n\r", social->enabled ? "Yes" : "No"));
+
+        add_buf(output, "{C--- No Target Specified ---{x\n\r");
+        if (social->char_no_arg) add_buf(output, formatf("{cCharNoArg:{x   %s\n\r", social->char_no_arg));
+        else add_buf(output, "{cCharNoArg:{x   {D(none){x\n\r");
+        if (social->others_no_arg) add_buf(output, formatf("{cOthersNoArg:{x %s\n\r", social->others_no_arg));
+        else add_buf(output, "{cOthersNoArg:{x {D(none){x\n\r");
+
+        add_buf(output, "\n\r{C--- Target Specified ($N) ---{x\n\r");
+        if (social->char_found) add_buf(output, formatf("{cCharFound:{x   %s\n\r", social->char_found));
+        else add_buf(output, "{cCharFound:{x   {D(none){x\n\r");
+        if (social->others_found) add_buf(output, formatf("{cOthersFound:{x %s\n\r", social->others_found));
+        else add_buf(output, "{cOthersFound:{x {D(none){x\n\r");
+        if (social->vict_found) add_buf(output, formatf("{cVictFound:{x   %s\n\r", social->vict_found));
+        else add_buf(output, "{cVictFound:{x   {D(none){x\n\r");
+
+        add_buf(output, "\n\r{C--- Target Not Found ---{x\n\r");
+        if (social->char_not_found) add_buf(output, formatf("{cCharNotFound:{x %s\n\r", social->char_not_found));
+        else add_buf(output, "{cCharNotFound:{x {D(none){x\n\r");
+
+        add_buf(output, "\n\r{C--- Self as Target ---{x\n\r");
+        if (social->char_auto) add_buf(output, formatf("{cCharAuto:{x    %s\n\r", social->char_auto));
+        else add_buf(output, "{cCharAuto:{x    {D(none){x\n\r");
+        if (social->others_auto) add_buf(output, formatf("{cOthersAuto:{x  %s\n\r", social->others_auto));
+        else add_buf(output, "{cOthersAuto:{x  {D(none){x\n\r");
+        
+        add_buf(output, "\n\r{YNote: $n = actor, $N = target, $s = actor's possessive, etc.{x\n\r");
+
+        page_to_char(buf_string(output), ch);
+        free_buf(output);
+        return;
     }
 
-    if (col % 6 != 0)
-	send_to_char("\n\r", ch);
+
+    // List all socials
+    output = new_buf();
+    iterator_start(&it, social_list);
+    while ((social = (SOCIAL_DATA *)iterator_nextdata(&it))) {
+        if (!social->enabled && !IS_IMMORTAL(ch)) continue; // Mortals don't see disabled socials
+
+        sprintf(buf, "%s%-12.12s%s",
+            social->enabled ? "{g" : "{r", // Green for enabled, red for disabled (for imms)
+            social->name,
+            "{x");
+        add_buf(output, buf);
+        if (++col % 6 == 0) {
+            add_buf(output, "\n\r");
+        }
+    }
+    iterator_stop(&it);
+
+    if (col == 0) {
+        add_buf(output, "There are no socials defined.\n\r");
+    } else if (col % 6 != 0) {
+        add_buf(output, "\n\r");
+    }
+
+    page_to_char(buf_string(output), ch);
+    free_buf(output);
 }
 
 
@@ -1455,9 +1546,9 @@ void do_survey(CHAR_DATA *ch, char *argument)
 		if( str_cmp(arg, "auto") )
 		{
 			if (ship->ship_type != SHIP_AIR_SHIP)
-				act("You survey the area around the boat.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+				act("You survey the area around the boat.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 			else
-				act("You survey the area around the airship.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+				act("You survey the area around the airship.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		}
 
 		long bonus_view;
@@ -1472,7 +1563,7 @@ void do_survey(CHAR_DATA *ch, char *argument)
 		if( !IS_WILDERNESS(ship->ship->in_room) )
 		{
 			AREA_DATA *area = ship->ship->in_room->area;
-		    act("$p has landed in $T.", ch, NULL, NULL, ship->ship, NULL, NULL, area->name, TO_CHAR);
+		    act("$p has landed in $T.", ch, NULL, NULL, ship->ship, NULL, NULL, area->name, TO_CHAR, NULL, NULL);
 		    return;
 		}
 
@@ -1614,7 +1705,7 @@ void do_survey(CHAR_DATA *ch, char *argument)
 
     }
 
-    act("You aren't on a boat.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+    act("You aren't on a boat.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 }
 
 void do_areas(CHAR_DATA *ch, char *argument)
@@ -2300,11 +2391,11 @@ void do_look(CHAR_DATA * ch, char *argument)
 		{
 			if (IS_SET(CONTAINER(obj)->flags, CONT_CLOSED) && !IS_SET(CONTAINER(obj)->flags, CONT_TRANSPARENT))
 			{
-				act("$p is closed.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+				act("$p is closed.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 			}
 			else
 			{
-				act("$p holds:", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+				act("$p holds:", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 				show_list_to_char(obj->contains, ch, true, true);
 			}
 		}
@@ -2312,7 +2403,7 @@ void do_look(CHAR_DATA * ch, char *argument)
 		{
 			if (IS_SET(FLUID_CON(obj)->flags, CONT_CLOSED) && !IS_SET(FLUID_CON(obj)->flags, CONT_TRANSPARENT))
 			{
-				act("$p is closed.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+				act("$p is closed.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 			}
 			else if (!IS_VALID(FLUID_CON(obj)->liquid))
 			{
@@ -2340,7 +2431,7 @@ void do_look(CHAR_DATA * ch, char *argument)
 				break;
 
 			case ITEM_CORPSE:
-				act("$p holds:", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+				act("$p holds:", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 				show_list_to_char(obj->contains, ch, true, true);
 				break;
 			}
@@ -2356,23 +2447,30 @@ void do_look(CHAR_DATA * ch, char *argument)
 			number = number_argument(argument, arg3);
 			count = 0;
 			// look at an object in the inventory
-			for (obj = victim->carrying; obj != NULL; obj = obj->next_content)
-				if (can_see_obj(ch, obj) && obj->wear_loc != WEAR_NONE && wear_params[obj->wear_loc][WEAR_PARAM_SEEN] &&
-					is_name(arg3, obj->name) && (++count == number))
-				{
-					if (ch != victim)
-					{
-						if(can_see(victim, ch) && ch->invis_level < STAFF_IMMORTAL)
-						{
-							act("$n looks at $p on you.", ch, victim, NULL, obj, NULL, NULL, NULL, TO_VICT);
-							act("$n looks at $p on $N.", ch, victim, NULL, obj, NULL, NULL, NULL, TO_NOTVICT);
-						}
-						act("{MYou take a look at {W$p{M on {W$N{M.{x", ch, victim, NULL, obj, NULL, NULL, NULL, TO_CHAR);
-					}
-					send_to_char(obj->full_description, ch);
-					send_to_char("\n\r", ch);
-					return;
-				}
+        	ITERATOR it;
+        	OBJ_DATA *worn_obj;
+        	iterator_start(&it, victim->lworn);
+        	while ((worn_obj = (OBJ_DATA *)iterator_nextdata(&it))) 
+			{
+            	if (can_see_obj(ch, worn_obj) && worn_obj->wear_loc != WEAR_NONE && wear_params[worn_obj->wear_loc][WEAR_PARAM_SEEN] &&
+                	is_name(arg3, worn_obj->name) && (++count == number))
+            	{
+                	if (ch != victim)
+                	{
+                    	if(can_see(victim, ch) && ch->invis_level < STAFF_IMMORTAL)
+                    	{
+                        	act("$n looks at $p on you.", ch, victim, NULL, worn_obj, NULL, NULL, NULL, TO_VICT, NULL, NULL);
+                        	act("$n looks at $p on $N.", ch, victim, NULL, worn_obj, NULL, NULL, NULL, TO_NOTVICT, NULL, NULL);
+                    	}
+                    	act("{MYou take a look at {W$p{M on {W$N{M.{x", ch, victim, NULL, worn_obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+                	}
+                	send_to_char(worn_obj->full_description, ch);
+                	send_to_char("\n\r", ch);
+                	iterator_stop(&it);
+                	return;
+            	}
+        	}
+        	iterator_stop(&it);
 
 			if (count > 0 && count != number)
 			{
@@ -2385,7 +2483,7 @@ void do_look(CHAR_DATA * ch, char *argument)
 				return;
 			}
 
-			act("You don't see anything like that on $N.", ch, victim, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+			act("You don't see anything like that on $N.", ch, victim, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		} else
 			show_char_to_char_1(victim, ch, false);
 		return;
@@ -2422,7 +2520,9 @@ void do_look(CHAR_DATA * ch, char *argument)
 	*/
 
 	/* look at an object in the inventory */
-	for (obj = ch->carrying; obj != NULL; obj = obj->next_content)
+	ITERATOR it;
+	iterator_start(&it, ch->lcarrying);
+	while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) 
 	{
 		perform_lore = false;
 		if (can_see_obj(ch, obj))
@@ -2540,13 +2640,13 @@ void do_look(CHAR_DATA * ch, char *argument)
 								return;
 							}
 
-							act("{YYou look through the eyes of $N:{x", ch, victim, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+							act("{YYou look through the eyes of $N:{x", ch, victim, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 
 							//Updated show_room_to_char to show_room. -- Tieryo 08/18/2010
 							show_room(ch,victim->in_room,true,false,false);
 						}
 						else
-							act("{DThe soul of {x$T{D has left this world.", ch, NULL, NULL, NULL, NULL, NULL, obj->owner, TO_CHAR);
+							act("{DThe soul of {x$T{D has left this world.", ch, NULL, NULL, NULL, NULL, NULL, obj->owner, TO_CHAR, NULL, NULL);
 					}
 
 					return;
@@ -2554,6 +2654,7 @@ void do_look(CHAR_DATA * ch, char *argument)
 			}
 		}
 	}
+	iterator_stop(&it);
 
 	for (obj = ch->in_room->contents; obj != NULL; obj = obj->next_content)
 	{
@@ -2922,7 +3023,7 @@ void do_look(CHAR_DATA * ch, char *argument)
 		{
 			if (pexit->keyword != NULL && pexit->keyword[0] != '\0' && pexit->keyword[0] != ' ')
 			{
-				act("You can't see past the $d.", ch, NULL, NULL, NULL, NULL, NULL, pexit->keyword, TO_CHAR);
+				act("You can't see past the $d.", ch, NULL, NULL, NULL, NULL, NULL, pexit->keyword, TO_CHAR, NULL, NULL);
 				return;
 			}
 			else
@@ -2969,12 +3070,19 @@ void do_examine(CHAR_DATA * ch, char *argument)
 			number = number_argument(argument, arg3);
 			count = 0;
 			// look at an object in the inventory
-			for (obj = victim->carrying; obj != NULL; obj = obj->next_content)
+        	// Examine worn items first
+        	ITERATOR it;
+        	iterator_start(&it, victim->lworn);
+        	while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) 
+			{				
 				if (can_see_obj(ch, obj) && obj->wear_loc != WEAR_NONE && wear_params[obj->wear_loc][WEAR_PARAM_SEEN] &&
 					is_name(arg3, obj->name) && (++count == number))
 				{
-					if (p_percent_trigger(NULL, obj, NULL, NULL, ch, victim, NULL, NULL, NULL, TRIG_EXAMINE, argument,0,0,0,0,0)) return;
-
+					if (p_percent_trigger(NULL, obj, NULL, NULL, ch, victim, NULL, NULL, NULL, TRIG_EXAMINE, argument,0,0,0,0,0)){
+						iterator_stop(&it);
+						return;
+					}
+					perform_lore = false;
 					if (get_skill(ch, gsk_lore) > 0 &&
 						number_percent() <= get_skill(ch, gsk_lore) &&
 						((!IS_NPC(ch) && IS_SET(ch->act[0], PLR_HOLYLIGHT)) ||													// Immortal HOLYLIGHT
@@ -2989,10 +3097,10 @@ void do_examine(CHAR_DATA * ch, char *argument)
 
 						if(can_see(victim, ch) && ch->invis_level < STAFF_IMMORTAL)
 						{
-							act("$n examines $p on you.", ch, victim, NULL, obj, NULL, NULL, NULL, TO_VICT);
-							act("$n examines $p on $N.", ch, victim, NULL, obj, NULL, NULL, NULL, TO_NOTVICT);
+							act("$n examines $p on you.", ch, victim, NULL, obj, NULL, NULL, NULL, TO_VICT, NULL, NULL);
+							act("$n examines $p on $N.", ch, victim, NULL, obj, NULL, NULL, NULL, TO_NOTVICT, NULL, NULL);
 						}
-						act("{MYou examine {W$p{M on {W$N{M.{x", ch, victim, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+						act("{MYou examine {W$p{M on {W$N{M.{x", ch, victim, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 					}
 					send_to_char(obj->full_description, ch);
 					if (perform_lore)
@@ -3004,11 +3112,55 @@ void do_examine(CHAR_DATA * ch, char *argument)
 						send_to_char("\n\r", ch);
 
 					p_percent_trigger(NULL, obj, NULL, NULL, ch, NULL, NULL, NULL, NULL, TRIG_LORE_EX, NULL,0,0,0,0,0);
+					iterator_stop(&it);
 					check_improve(ch, gsk_lore, true, 10);
 					return;
 				}
+        	}
+        	iterator_stop(&it);
 
-			if (count > 0 && count != number)
+        	// Now examine inventory
+        	iterator_start(&it, victim->lcarrying);
+        	while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+            	if (can_see_obj(ch, obj) && obj->wear_loc == WEAR_NONE &&
+            	    is_name(arg3, obj->name) && (++count == number))
+            	{
+                	if (p_percent_trigger(NULL, obj, NULL, NULL, ch, victim, NULL, NULL, NULL, TRIG_EXAMINE, argument,0,0,0,0,0))
+					 {
+                    	iterator_stop(&it);
+                    	return;
+                	}
+                perform_lore = false;
+                if ((IS_NPC(ch) || !IS_SET(ch->act[1], PLR_NOLORE)) &&
+                    ((!IS_NPC(ch) && IS_SET(ch->act[0], PLR_HOLYLIGHT)) ||
+                    !IS_SET(obj->extra[1], ITEM_NO_LORE) ||
+                    (IS_SET(obj->extra[1], ITEM_ALL_REMORT) && IS_REMORT(ch)) ||
+                    (IS_SET(obj->extra[1], ITEM_REMORT_ONLY) && IS_REMORT(ch) && ch->tot_level > obj->level) ||
+                    (!IS_SET(obj->extra[1], ITEM_REMORT_ONLY) && ch->tot_level > obj->level)))
+                    perform_lore = true;
+
+                if (ch != victim) {
+                    if(can_see(victim, ch) && ch->invis_level < STAFF_IMMORTAL) {
+                        act("$n examines $p in your inventory.", ch, victim, NULL, obj, NULL, NULL, NULL, TO_VICT, NULL, NULL);
+                        act("$n examines $p in $N's inventory.", ch, victim, NULL, obj, NULL, NULL, NULL, TO_NOTVICT, NULL, NULL);
+                    }
+                    act("{MYou examine {W$p{M in {W$N's{M inventory.{x", ch, victim, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+                }
+                send_to_char(obj->full_description, ch);
+                if (perform_lore) {
+                    send_to_char("\n\r{YFrom your studies you can conclude the following information: {X\n\r", ch);
+                    spell_identify(gsn_lore, ch->tot_level, ch, (void *) obj, TARGET_OBJ, WEAR_NONE);
+                } else
+                    send_to_char("\n\r", ch);
+
+                p_percent_trigger(NULL, obj, NULL, NULL, ch, NULL, NULL, NULL, NULL, TRIG_LORE_EX, NULL,0,0,0,0,0);
+                iterator_stop(&it);
+                return;
+            }
+        }
+        iterator_stop(&it);
+
+        if (count > 0 && count != number) {
 			{
 				if (count == 1)
 					sprintf(buf, "You only see one %s here.\n\r", arg3);
@@ -3019,7 +3171,7 @@ void do_examine(CHAR_DATA * ch, char *argument)
 				return;
 			}
 
-			act("You don't see anything like that on $N.", ch, victim, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+			act("You don't see anything like that on $N.", ch, victim, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		}
 		else
 		{
@@ -3028,6 +3180,7 @@ void do_examine(CHAR_DATA * ch, char *argument)
 			show_char_to_char_1(victim, ch, true);
 		}
 		return;
+	}
 	}
 
     if ((obj = get_obj_here(ch, NULL, arg1)) != NULL)
@@ -4787,11 +4940,15 @@ void do_who_new(CHAR_DATA * ch, char *argument)
 			iLevelUpper = atoi(arg2);
 		}
 
-		for (church = church_list; church != NULL; church = church->next)
+		ITERATOR it;
+		church = NULL;
+		iterator_start(&it, list_churches);
+		while ((church = (CHURCH_DATA *)iterator_nextdata(&it)))
 		{
-			if (!str_prefix(arg, church->name))
-			break;
+    		if (!str_prefix(arg, church->name))
+        	break;
 		}
+		iterator_stop(&it);
     }
 
     send_to_char("\n\r{b.,-~^~{B-,._.,{C[ {WPlayers in Sentience {C]{B-.._.,-{b~^~-,.{x\n\r", ch);
@@ -5128,7 +5285,7 @@ void do_inventory(CHAR_DATA * ch, char *argument)
     char buf[MAX_STRING_LENGTH];
 
     send_to_char("You are carrying:\n\r", ch);
-    show_list_to_char(ch->carrying, ch, true, true);    
+    show_llist_to_char(ch->lcarrying, ch, true, true);
 	if (!IS_DEAD(ch))
     {
 	sprintf(buf,
@@ -5163,9 +5320,14 @@ void show_equipment(CHAR_DATA *ch, CHAR_DATA *victim)
 
 	memset(eq,0,sizeof(eq));
 
-	for (obj = victim->carrying; obj != NULL; obj = obj->next_content)
-		if(obj->wear_loc != WEAR_NONE)
-			eq[obj->wear_loc] = obj;
+    // Use lworn instead of carrying
+    ITERATOR it;
+    iterator_start(&it, victim->lworn);
+    while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+        if(obj->wear_loc != WEAR_NONE)
+            eq[obj->wear_loc] = obj;
+    }
+    iterator_stop(&it);
 
 	for (idx = 0; wear_view_order[idx] != WEAR_NONE; idx++) {
 		iWear = wear_view_order[idx];
@@ -5262,7 +5424,7 @@ void do_consider(CHAR_DATA * ch, char *argument)
     else
 	msg = "Death will thank you for your gift.";
 
-    act(msg, ch, victim, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+    act(msg, ch, victim, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
     return;
 }
 
@@ -5382,7 +5544,7 @@ void do_report(CHAR_DATA * ch, char *argument)
 	    ch->hit, ch->max_hit, ch->mana, ch->max_mana, ch->move,
 	    ch->max_move, ch->exp);
 
-    act(buf, ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+    act(buf, ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 }
 
 
@@ -5532,13 +5694,16 @@ void do_bank(CHAR_DATA * ch, char *argument)
 
     room = ch->in_room;
 
-    for (obj = ch->carrying; obj != NULL; obj = obj->next_content)
-    {
-	if (obj->item_type == ITEM_BANK) {
-	    item = true;
-	    break;
+	ITERATOR it;
+	item = false;
+	iterator_start(&it, ch->lcarrying);
+	while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+    	if (obj->item_type == ITEM_BANK) {
+        	item = true;
+        	break;
+    	}
 	}
-    }
+	iterator_stop(&it);
 
     if (!IS_IMMORTAL(ch)
     && !IS_SET(room->room_flag[0], ROOM_BANK)
@@ -6945,7 +7110,7 @@ void do_scry(CHAR_DATA *ch, char *argument)
 	}
 
 	if (!get_char_world(ch, arg)) {
-		act("You sense no $T in the world.", ch, NULL, NULL, NULL, NULL, NULL, arg, TO_CHAR);
+		act("You sense no $T in the world.", ch, NULL, NULL, NULL, NULL, NULL, arg, TO_CHAR, NULL, NULL);
 		return;
 	}
 
@@ -6994,7 +7159,7 @@ void do_scry(CHAR_DATA *ch, char *argument)
 	iterator_stop(&vit);
 
 	if (!found)
-		act("You sense no $T in the world.", ch, NULL, NULL, NULL, NULL, NULL, arg, TO_CHAR);
+		act("You sense no $T in the world.", ch, NULL, NULL, NULL, NULL, NULL, arg, TO_CHAR, NULL, NULL);
 	else
 		page_to_char(buf_string(buffer),ch);
 
@@ -8365,7 +8530,7 @@ void do_dice(CHAR_DATA *ch, char *argument)
     send_to_char(buf, ch);
 
     sprintf(buf, "$n rolled a %d.", result);
-    act(buf, ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+    act(buf, ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 }
 
 int calc_season(void)
@@ -8503,7 +8668,7 @@ void do_expand(CHAR_DATA *ch, char *argument)
 			sprintf(buf, "{xCannot expand $p{x to that distance.  Please pick a value from %d to %d.",
 				telescope->distance + 1, telescope->max_distance);
 
-			act(buf, ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+			act(buf, ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 			return;
 		}
 	}
@@ -8515,7 +8680,7 @@ void do_expand(CHAR_DATA *ch, char *argument)
 	{
 		if (ret != PRET_SILENT)
 		{
-			act("Unable to expand $p{x.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+			act("Unable to expand $p{x.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 			return;
 		}
 	}
@@ -8523,13 +8688,13 @@ void do_expand(CHAR_DATA *ch, char *argument)
 	if( distance > telescope->distance )
 	{
 		telescope->distance = distance;
-    	act("{xYou expand $p{x.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
-    	act("{x$n expands $p{x.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM);
+    	act("{xYou expand $p{x.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+    	act("{x$n expands $p{x.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 		p_percent_trigger(NULL, obj, NULL, NULL, ch, NULL, NULL, NULL, NULL, TRIG_EXPAND, NULL, 0,0,0,0,0);
 	}
 	else
 	{
-		act("{x$p{x is already expanded that far.{x.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+		act("{x$p{x is already expanded that far.{x.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 	}
 }
 
@@ -8571,7 +8736,7 @@ void do_collapse(CHAR_DATA *ch, char *argument)
 			sprintf(buf, "{xCannot collapse $p{x to that distance.  Please pick a value from %d to %d.",
 				telescope->min_distance, telescope->distance - 1);
 
-			act(buf, ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+			act(buf, ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 			return;
 		}
 	}
@@ -8583,7 +8748,7 @@ void do_collapse(CHAR_DATA *ch, char *argument)
 	{
 		if (ret != PRET_SILENT)
 		{
-			act("Unable to collapse $p{x.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+			act("Unable to collapse $p{x.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 			return;
 		}
 	}
@@ -8591,12 +8756,12 @@ void do_collapse(CHAR_DATA *ch, char *argument)
 	if( distance < telescope->distance )
 	{
 		telescope->distance = distance;
-    	act("{xYou collapse $p{x.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
-    	act("{x$n collapses $p{x.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM);
+    	act("{xYou collapse $p{x.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+    	act("{x$n collapses $p{x.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 		p_percent_trigger(NULL, obj, NULL, NULL, ch, NULL, NULL, NULL, NULL, TRIG_COLLAPSE, NULL, 0,0,0,0,0);
 	}
 	else
-		act("{x$p{x is already collapsed that far.{x.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+		act("{x$p{x is already collapsed that far.{x.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 }
 
 void look_sextant(CHAR_DATA *ch, OBJ_DATA *obj)
@@ -8776,7 +8941,7 @@ void look_through_telescope(CHAR_DATA *ch, OBJ_DATA *obj, char *argument)
 		{
 			if (ret != PRET_SILENT)
 			{
-				act("Unable to orient $p{x in that direction.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+				act("Unable to orient $p{x in that direction.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 				return;
 			}
 		}
@@ -8848,7 +9013,7 @@ void look_through_telescope(CHAR_DATA *ch, OBJ_DATA *obj, char *argument)
 			int bvx = telescope->bonus_view;
 			int bvy = 2 * bvx / 3;
 
-			act("{xPeering through $p{x, you see:{x", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+			act("{xPeering through $p{x, you see:{x", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 			show_map_to_char_wyx(wilds, tx, ty, ch, x, y, bvx, bvy, false);
 		}
 
@@ -8882,7 +9047,7 @@ void look_compass(CHAR_DATA *ch, OBJ_DATA *obj)
 	{
 		if (ret != PRET_SILENT)
 		{
-			act("{xThe needle on $p{x can't decide where to point.{x", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+			act("{xThe needle on $p{x can't decide where to point.{x", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 			return;
 		}
 	}
@@ -8963,7 +9128,7 @@ void look_compass(CHAR_DATA *ch, OBJ_DATA *obj)
 
 	if( heading < 0 )
 	{
-		act("{xThe needle on $p{x is spinning.{x", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+		act("{xThe needle on $p{x is spinning.{x", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		return;
 	}
 
@@ -9032,12 +9197,12 @@ void look_compass(CHAR_DATA *ch, OBJ_DATA *obj)
 		}
 
 		sprintf(buf, "{xThe needle on $p{x points %s.", arg);
-		act(buf, ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+		act(buf, ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		success = true;
 	}
 	else
 	{
-		act("{xYou have trouble reading the needle on $p{x.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+		act("{xYou have trouble reading the needle on $p{x.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		success = false;
 	}
 
@@ -9101,7 +9266,7 @@ void look_map(CHAR_DATA *ch, OBJ_DATA *obj)
 		}
 		else
 		{
-			act("{MYou don't understand the numbers written on {x$p{M.{x", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR);
+			act("{MYou don't understand the numbers written on {x$p{M.{x", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 
 			success = false;
 		}

@@ -51,7 +51,7 @@ void do_disembark( CHAR_DATA *ch, char *argument)
 
     if ( ch->fighting != NULL )
     {
-		act("You can't disembark while fighting.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+		act("You can't disembark while fighting.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 		return;
     }
 
@@ -67,13 +67,13 @@ void do_disembark( CHAR_DATA *ch, char *argument)
     {
 		if ( ship->ship_power > SHIP_SPEED_STOPPED )
 		{
-			act( "The doors of the airship are locked!", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR );
+			act( "The doors of the airship are locked!", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL );
 			return;
 		}
 
 		if ( ship->ship_power == SHIP_SPEED_STOPPED && !mobile_is_flying(ch) )
 		{
-			act( "You need to be flying to disembark a flying airship.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR );
+			act( "You need to be flying to disembark a flying airship.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL );
 			return;
 		}
     }
@@ -89,13 +89,13 @@ void do_disembark( CHAR_DATA *ch, char *argument)
 
     if( get_colour_width(ship_obj->short_descr) > 0 )
     {
-	    act("{WYou disembark from {x$p{W.{x", ch, NULL, NULL, ship_obj, NULL, NULL, NULL, TO_CHAR);
-    	act("{W$n disembarks from {x$p{W.{x", ch, NULL, NULL, ship_obj, NULL, NULL, NULL, TO_ROOM);
+	    act("{WYou disembark from {x$p{W.{x", ch, NULL, NULL, ship_obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+    	act("{W$n disembarks from {x$p{W.{x", ch, NULL, NULL, ship_obj, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 	}
 	else
 	{
-	    act("{WYou disembark from $p.{x", ch, NULL, NULL, ship_obj, NULL, NULL, NULL, TO_CHAR);
-    	act("{W$n disembarks from $p.{x", ch, NULL, NULL, ship_obj, NULL, NULL, NULL, TO_ROOM);
+	    act("{WYou disembark from $p.{x", ch, NULL, NULL, ship_obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+    	act("{W$n disembarks from $p.{x", ch, NULL, NULL, ship_obj, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 	}
 
 	move_cart(ch,location,true);
@@ -528,7 +528,7 @@ if (PULLING_CART(ch) && portal->item_type != ITEM_SHIP)
 		// TODO: Why?
 	    if (MOUNTED(ch))
 	    {
-			act("You can't board this vessel while mounted.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+			act("You can't board this vessel while mounted.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 			return;
 	    }
 
@@ -536,14 +536,14 @@ if (PULLING_CART(ch) && portal->item_type != ITEM_SHIP)
 	    {
 	    	if( !mobile_is_flying(ch) && portal->ship->ship_power != SHIP_SPEED_LANDED )
 	    	{
-				act("You need to be flying to board a flying airship.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+				act("You need to be flying to board a flying airship.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 				return;
 			}
 		}
 
 		if (portal->ship->ship_power > SHIP_SPEED_STOPPED)
 		{
-			act("You can't board a moving vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR);
+			act("You can't board a moving vessel.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 			return;
 		}
 
@@ -555,15 +555,15 @@ if (PULLING_CART(ch) && portal->item_type != ITEM_SHIP)
 				return;
 
 			/* CHAR_DATA *pMob; */
-			act("{WYou board {x$p{W.{x\n\r", ch, NULL, NULL, portal, NULL, NULL, NULL, TO_CHAR);
-			act("{W$n boards {x$p{W.{x\n\r", ch, NULL, NULL, portal, NULL, NULL, NULL, TO_ROOM);
+			act("{WYou board {x$p{W.{x\n\r", ch, NULL, NULL, portal, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+			act("{W$n boards {x$p{W.{x\n\r", ch, NULL, NULL, portal, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
 			move_cart(ch,location,true);
 
 			char_from_room(ch);
 			char_to_room(ch, location);
 
-			act("{W$n boards {x$p{W.{x", ch, NULL, NULL, portal, NULL, NULL, NULL, TO_ROOM);
+			act("{W$n boards {x$p{W.{x", ch, NULL, NULL, portal, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
 			do_function(ch, &do_look, "auto");
 			return;
@@ -599,7 +599,7 @@ if (PULLING_CART(ch) && portal->item_type != ITEM_SHIP)
 
   	if (!location || location == old_room || !can_see_room(ch,location) ||
   		(!IS_SET(PORTAL(portal)->flags,GATE_NOPRIVACY) && room_is_private(location, ch))) {
-	    act("$p doesn't seem to go anywhere.",ch, NULL, NULL,portal,NULL, NULL, NULL,TO_CHAR);
+	    act("$p doesn't seem to go anywhere.",ch, NULL, NULL,portal,NULL, NULL, NULL,TO_CHAR, NULL, NULL);
 	    return;
 	}
 
@@ -629,16 +629,16 @@ if (PULLING_CART(ch) && portal->item_type != ITEM_SHIP)
 
  	/* @@@NIB : 20070126 : added the check */
  	if(!IS_SET(PORTAL(portal)->flags,GATE_SILENTENTRY))
-  		act("$n steps into $p.",ch, NULL, NULL,portal, NULL, NULL,NULL,TO_ROOM);
+  		act("$n steps into $p.",ch, NULL, NULL,portal, NULL, NULL,NULL,TO_ROOM, NULL, NULL);
 
 	if (IS_SET(PORTAL(portal)->flags,GATE_NORMAL_EXIT))
-	    act("{YYou enter $p.{x",ch, NULL, NULL,portal, NULL, NULL,NULL,TO_CHAR);
+	    act("{YYou enter $p.{x",ch, NULL, NULL,portal, NULL, NULL,NULL,TO_CHAR, NULL, NULL);
 	else if (!IS_SET(PORTAL(portal)->flags, GATE_RANDOM))
 	    act("{YYou walk through $p and find yourself in $T.{x",
-		    ch, NULL, NULL,portal, NULL, NULL,location->name,TO_CHAR);
+		    ch, NULL, NULL,portal, NULL, NULL,location->name,TO_CHAR, NULL, NULL);
 	else
 	    act("{YYou walk through $p and find yourself somewhere else...{x",
-		    ch, NULL, NULL,portal, NULL, NULL,location->name,TO_CHAR);
+		    ch, NULL, NULL,portal, NULL, NULL,location->name,TO_CHAR, NULL, NULL);
 
 	move_cart(ch,location,true);
 
@@ -728,33 +728,33 @@ if (PULLING_CART(ch) && portal->item_type != ITEM_SHIP)
 			{
 				if( !IS_NULLSTR(in_dungeon->index->zone_out_portal) )
 				{
-					act(in_dungeon->index->zone_out_portal, ch, NULL, NULL, dp, NULL, NULL, NULL, TO_ROOM);
+					act(in_dungeon->index->zone_out_portal, ch, NULL, NULL, dp, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 				}
 				else
 				{
-					act("$n has arrived through $p.",ch, NULL, NULL,dp, NULL, NULL,NULL,TO_ROOM);
+					act("$n has arrived through $p.",ch, NULL, NULL,dp, NULL, NULL,NULL,TO_ROOM, NULL, NULL);
 				}
 			}
 			else if(MOUNTED(ch))
 			{
 				if( !IS_NULLSTR(in_dungeon->index->zone_out_mount) )
-					act(in_dungeon->index->zone_out_mount, ch, MOUNTED(ch), NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+					act(in_dungeon->index->zone_out_mount, ch, MOUNTED(ch), NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 				else
 
-					act("{W$n materializes, riding on $N.{x", ch, MOUNTED(ch), NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+					act("{W$n materializes, riding on $N.{x", ch, MOUNTED(ch), NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 			}
 			else
 			{
 				if( !IS_NULLSTR(in_dungeon->index->zone_out) )
-					act(in_dungeon->index->zone_out, ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+					act(in_dungeon->index->zone_out, ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 				else
-					act("{W$n materializes.{x", ch,NULL,NULL,NULL,NULL, NULL, NULL, TO_ROOM);
+					act("{W$n materializes.{x", ch,NULL,NULL,NULL,NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 			}
 		}
 		else if (IS_SET(PORTAL(portal)->flags,GATE_NORMAL_EXIT))
-  		    act("$n has arrived.",ch, NULL, NULL, NULL, NULL, NULL,NULL,TO_ROOM);
+  		    act("$n has arrived.",ch, NULL, NULL, NULL, NULL, NULL,NULL,TO_ROOM, NULL, NULL);
   		else
-  		    act("$n has arrived through $p.",ch, NULL, NULL,portal, NULL, NULL,NULL,TO_ROOM);
+  		    act("$n has arrived through $p.",ch, NULL, NULL,portal, NULL, NULL,NULL,TO_ROOM, NULL, NULL);
 	}
 
 	if(!IS_NPC(ch) && IS_SET(PORTAL(portal)->flags,GATE_FORCE_BRIEF)) {
@@ -805,20 +805,20 @@ if (PULLING_CART(ch) && portal->item_type != ITEM_SHIP)
 
 	    if ( fch->master == ch && fch->position == POS_STANDING)
 	    {
-		act( "You follow $N.", fch, ch, NULL, NULL, NULL, NULL, NULL, TO_CHAR );
+		act( "You follow $N.", fch, ch, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL );
 		do_function(fch, &do_enter, argument);
 	    }
 	}
 
 	if (portal != NULL && PORTAL(portal)->charges == -1)
 	{
-	    act("$p fades out of existence.",ch, NULL, NULL,portal,NULL, NULL, NULL,TO_CHAR);
+	    act("$p fades out of existence.",ch, NULL, NULL,portal,NULL, NULL, NULL,TO_CHAR, NULL, NULL);
 	    if (ch->in_room == old_room)
-			act("$p fades out of existence.",ch, NULL, NULL,portal,NULL, NULL, NULL,TO_ROOM);
+			act("$p fades out of existence.",ch, NULL, NULL,portal,NULL, NULL, NULL,TO_ROOM, NULL, NULL);
 	    else if (old_room->people != NULL)
 	    {
-			act("$p fades out of existence.", old_room->people, NULL, NULL,portal,NULL, NULL, NULL,TO_CHAR);
-			act("$p fades out of existence.", old_room->people, NULL, NULL,portal,NULL, NULL, NULL,TO_ROOM);
+			act("$p fades out of existence.", old_room->people, NULL, NULL,portal,NULL, NULL, NULL,TO_CHAR, NULL, NULL);
+			act("$p fades out of existence.", old_room->people, NULL, NULL,portal,NULL, NULL, NULL,TO_ROOM, NULL, NULL);
 	    }
 	    extract_obj(portal);
 	}

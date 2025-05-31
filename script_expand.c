@@ -1454,7 +1454,7 @@ EXPAND_TYPE(game)
 	case ENTITY_GAME_NAME:
 		arg->type = ENT_STRING;
 		clear_buf(arg->buffer);
-		add_buf(arg->buffer, "Sentience");
+		add_buf(arg->buffer, game_settings.game_name);
 		arg->d.str = buf_string(arg->buffer);
 		break;
 
@@ -1541,6 +1541,10 @@ EXPAND_TYPE(game)
 		strftime(time_str, sizeof(time_str), "%a %b %d %X %Z %Y", local_time);
 		arg->d.str = strdup(time_str);
 		break;
+
+    case ENTITY_GAME_SETTINGS:
+        arg->type = ENT_GAME_SETTING;
+        break;
 
 	default: return NULL;
 	}
@@ -8538,6 +8542,69 @@ EXPAND_TYPE(bitmatrix)
 	return str+1;
 }
 
+// Implementation for dynamic game settings lookups
+EXPAND_TYPE(game_setting)
+{
+    switch(*str) {
+    case ESCAPE_VARIABLE:
+        arg->type = ENT_STRING;
+        
+        BUFFER *buffer = new_buf();
+        str = expand_name(info,(info?*(info->var):NULL),str+1,buffer);
+        if(!str) {
+            free_buf(buffer);
+            arg->d.str = &str_empty[0];
+            return NULL;
+        }
+        
+        // Get the game setting value, ensuring it's not sensitive
+        char *setting_name = buf_string(buffer);
+        const struct game_setting_type *setting = get_game_setting(setting_name);
+        
+        if (setting && !setting->sensitive) {
+            clear_buf(arg->buffer);
+            
+            // Handle different setting types
+            switch (setting->type) {
+                case SETTING_TYPE_BOOL:
+                    add_buf(arg->buffer, *((bool *)setting->ptr) ? "true" : "false");
+                    break;
+                case SETTING_TYPE_INT:
+                    {
+                        char num_buf[32];
+                        sprintf(num_buf, "%d", *((int *)setting->ptr));
+                        add_buf(arg->buffer, num_buf);
+                    }
+                    break;
+                case SETTING_TYPE_FLOAT:
+                    {
+                        char num_buf[32];
+                        sprintf(num_buf, "%.4f", *((float *)setting->ptr));
+                        add_buf(arg->buffer, num_buf);
+                    }
+                    break;
+                case SETTING_TYPE_STRING:
+                case SETTING_TYPE_EXTSTR:
+                    if (*((char **)setting->ptr))
+                        add_buf(arg->buffer, *((char **)setting->ptr));
+                    break;
+                default:
+                    add_buf(arg->buffer, "");
+            }
+            
+            arg->d.str = buf_string(arg->buffer);
+        } else {
+            arg->d.str = &str_empty[0];
+        }
+        
+        free_buf(buffer);
+        break;
+    default: return NULL;
+    }
+
+    return str+1;
+}
+
 EXPAND_TYPE(reserved_mobile)
 {
 	switch(*str) {
@@ -10594,6 +10661,7 @@ EXPAND(expand_argument_entity)
 		ENTITY_CASE(SHOP_SHIPYARD,shop_shipyard)
 		ENTITY_CASE(SHOP_STOCK,shop_stock)
 		ENTITY_CASE(CREW,crew)
+		ENTITY_CASE(GAME_SETTING,game_setting)
 
 		case ENT_NULL:
 			next = str+1;
