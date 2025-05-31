@@ -52,25 +52,24 @@ void do_deposit(CHAR_DATA *ch, char *argument)
 
     if (mob != NULL && global == true)
     {
-	for (obj = ch->carrying; obj != NULL; obj = obj_next)
-	{
-	    obj_next = obj->next_content;
-
-	    for (gq_obj = global_quest.objects; gq_obj != NULL;
-		    gq_obj = gq_obj->next)
-	    {
-		if (obj->pIndexData->area->uid == gq_obj->wnum_load.auid && obj->pIndexData->vnum == gq_obj->wnum_load.vnum)
-		{
-		    found = true;
-		    qp += gq_obj->qp_reward;
-		    prac += gq_obj->prac_reward;
-		    exp += gq_obj->exp_reward;
-		    silver += gq_obj->silver_reward;
-		    gold += gq_obj->gold_reward;
-		    extract_obj(obj);
-		}
-	    }
-	}
+        ITERATOR it;
+        iterator_start(&it, ch->lcarrying);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+            for (gq_obj = global_quest.objects; gq_obj != NULL; gq_obj = gq_obj->next)
+            {
+                if (obj->pIndexData->area->uid == gq_obj->wnum_load.auid && obj->pIndexData->vnum == gq_obj->wnum_load.vnum)
+                {
+                    found = true;
+                    qp += gq_obj->qp_reward;
+                    prac += gq_obj->prac_reward;
+                    exp += gq_obj->exp_reward;
+                    silver += gq_obj->silver_reward;
+                    gold += gq_obj->gold_reward;
+                    extract_obj(obj);
+                }
+            }
+        }
+        iterator_stop(&it);
 
 	if (found)
 	{
@@ -118,17 +117,17 @@ void do_deposit(CHAR_DATA *ch, char *argument)
     if (mob == NULL)
 	return;
 
-    for (obj = ch->carrying; obj != NULL; obj = obj_next)
-    {
-	obj_next = obj->next_content;
-
-	if (obj->pIndexData == obj_index_bottled_soul)
-	{
-	    found = true;
-	    extract_obj(obj);
-	    i++;
-	}
+    ITERATOR it2;
+    iterator_start(&it2, ch->lcarrying);
+    while ((obj = (OBJ_DATA *)iterator_nextdata(&it2))) {
+        if (obj->pIndexData == obj_index_bottled_soul)
+        {
+            found = true;
+            extract_obj(obj);
+            i++;
+        }
     }
+    iterator_stop(&it2);
 
     if (found)
     {
@@ -457,12 +456,18 @@ void save_last_wear(CHAR_DATA *ch)
 {
     OBJ_DATA *pObj = NULL;
 
-    /* Reset last wear location*/
-    for (pObj = ch->carrying; pObj != NULL; pObj = pObj->next_content)
-	pObj->last_wear_loc = WEAR_NONE;
+    // Reset last wear location for all inventory items
+    ITERATOR it;
+    iterator_start(&it, ch->lcarrying);
+    while ((pObj = (OBJ_DATA *)iterator_nextdata(&it)))
+        pObj->last_wear_loc = WEAR_NONE;
+    iterator_stop(&it);
 
-    for (pObj = ch->carrying; pObj != NULL; pObj = pObj->next_content)
-	pObj->last_wear_loc = pObj->wear_loc;
+    // Set last wear location for all currently worn items
+    iterator_start(&it, ch->lworn);
+    while ((pObj = (OBJ_DATA *)iterator_nextdata(&it)))
+        pObj->last_wear_loc = pObj->wear_loc;
+    iterator_stop(&it);
 }
 
 
@@ -696,30 +701,52 @@ void do_combine(CHAR_DATA *ch, char *argument)
 void do_keep(CHAR_DATA *ch, char *argument)
 {
     char arg[MSL];
-    OBJ_DATA *obj;
+    OBJ_DATA *obj = NULL;
 
     argument = one_argument(argument, arg);
     if (arg[0] == '\0')
     {
-	send_to_char("Syntax: keep <item>\n\r", ch);
-	return;
+        send_to_char("Syntax: keep <item>\n\r", ch);
+        return;
     }
 
-    if ((obj = get_obj_list(ch, arg, ch->carrying)) == NULL)
+    // First, search in inventory
+    ITERATOR it;
+    iterator_start(&it, ch->lcarrying);
+    while ((obj = (OBJ_DATA *)iterator_nextdata(&it)))
     {
-	act("You aren't carrying any $t.", ch, NULL, NULL, NULL, NULL, arg, NULL, TO_CHAR, NULL, NULL);
-	return;
+        if (is_name(arg, obj->name))
+            break;
+    }
+    iterator_stop(&it);
+
+    // If not found, search in worn items
+    if (obj == NULL)
+    {
+        iterator_start(&it, ch->lworn);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it)))
+        {
+            if (is_name(arg, obj->name))
+                break;
+        }
+        iterator_stop(&it);
+    }
+
+    if (obj == NULL)
+    {
+        act("You aren't carrying or wearing any $t.", ch, NULL, NULL, NULL, NULL, arg, NULL, TO_CHAR, NULL, NULL);
+        return;
     }
 
     if (IS_SET(obj->extra[1], ITEM_KEPT))
     {
-	REMOVE_BIT(obj->extra[1], ITEM_KEPT);
-	act("You will no longer keep $p.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+        REMOVE_BIT(obj->extra[1], ITEM_KEPT);
+        act("You will no longer keep $p.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
     }
     else
     {
-	SET_BIT(obj->extra[1], ITEM_KEPT);
-	act("You will now keep $p.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+        SET_BIT(obj->extra[1], ITEM_KEPT);
+        act("You will now keep $p.", ch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
     }
 }
 
@@ -1038,16 +1065,19 @@ void do_ink(CHAR_DATA *ch, char *argument)
 
 	memset(have,0,sizeof(have));
 	memset(need,0,sizeof(need));
-	for (obj = ch->carrying; obj != NULL; obj = obj->next_content) {
-		if (IS_INK(obj))
-		{
-			for(int i = 0; i < MAX_INK_TYPES; i++)
-			{
-				if (INK(obj)->types[i] > CATALYST_NONE && INK(obj)->types[i] < CATALYST_MAX && INK(obj)->amounts[i] > 0)
-					have[INK(obj)->types[i]] += INK(obj)->amounts[i];
-			}
-		}
-	}
+    ITERATOR it;
+    iterator_start(&it, ch->lcarrying);
+    while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+        if (IS_INK(obj))
+        {
+            for(int i = 0; i < MAX_INK_TYPES; i++)
+            {
+                if (INK(obj)->types[i] > CATALYST_NONE && INK(obj)->types[i] < CATALYST_MAX && INK(obj)->amounts[i] > 0)
+                    have[INK(obj)->types[i]] += INK(obj)->amounts[i];
+            }
+        }
+    }
+    iterator_stop(&it);
 
 	argument = one_argument(argument, arg);
 
@@ -1325,10 +1355,14 @@ void do_affix(CHAR_DATA *ch, char *argument)
 		return;
 	}
 
-	if ((obj = get_obj_list(ch,arg,ch->carrying)) == NULL) {
-		send_to_char("You do not have that tattoo.\n\r", ch);
-		return;
-	}
+    ITERATOR it;
+    iterator_start(&it, ch->lcarrying);
+    while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+        if (is_name(arg, obj->name))
+            break;
+    }
+    iterator_stop(&it);
+
 
 	if (obj->item_type != ITEM_TATTOO && !IS_SET(obj->wear_flags, ITEM_WEAR_TATTOO)) {
 		send_to_char("You can only affix tattoo.\n\r", ch);

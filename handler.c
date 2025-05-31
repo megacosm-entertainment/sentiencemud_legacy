@@ -3790,55 +3790,96 @@ OBJ_DATA *get_obj_type(OBJ_INDEX_DATA *pObjIndex, ROOM_INDEX_DATA *pRoom)
 
 
 /*
- * Find an obj in a list.
+ * Safe version of get_obj_list that properly distinguishes between
+ * traditional linked lists and LLIST structures
  */
-OBJ_DATA *get_obj_list(CHAR_DATA *ch, char *argument, OBJ_DATA *list)
+OBJ_DATA *get_obj_list(CHAR_DATA *ch, char *argument, void *list)
 {
     char arg[MAX_INPUT_LENGTH];
     OBJ_DATA *obj;
     int number;
     int count;
-
+    ITERATOR it;
+    
+    if (list == NULL)
+        return NULL;
+        
     number = number_argument(argument, arg);
-    count  = 0;
-    for (obj = list; obj != NULL; obj = obj->next_content)
-    {
-	if (can_see_obj(ch, obj) && (
-			(((obj->ship != NULL) && (!str_cmp(arg, obj->ship->ship_name)))) ||
-			is_name(arg, obj->name)))
-	{
-	    if (++count == number)
-		return obj;
-	}
-    }
+    count = 0;
 
+    // Check if we're dealing with an LLIST properly
+    if (is_llist(list)) {
+        LLIST *llist = (LLIST *)list;
+        
+        iterator_start(&it, llist);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+            if (can_see_obj(ch, obj) && is_name(arg, obj->name)) {
+                if (++count == number) {
+                    iterator_stop(&it);
+                    return obj;
+                }
+            }
+        }
+        iterator_stop(&it);
+        return NULL;
+    }
+    
+    // Traditional linked list case
+    for (obj = (OBJ_DATA *)list; obj != NULL; obj = obj->next_content) {
+        if (can_see_obj(ch, obj) && is_name(arg, obj->name)) {
+            if (++count == number)
+                return obj;
+        }
+    }
+    
     return NULL;
 }
 
 /*
- * Find an obj in a list.
+ * Safe version of get_obj_list_number that properly distinguishes between
+ * traditional linked lists and LLIST structures
  */
-OBJ_DATA *get_obj_list_number(CHAR_DATA *ch, char *argument, int *nth, OBJ_DATA *list)
+OBJ_DATA *get_obj_list_number(CHAR_DATA *ch, char *argument, int *nth, void *list)
 {
     OBJ_DATA *obj;
+    ITERATOR it;
     int number = *nth;
-
-    for (obj = list; obj != NULL; obj = obj->next_content)
-    {
-		if (can_see_obj(ch, obj) && (
-				(((obj->ship != NULL) && (!str_cmp(argument, obj->ship->ship_name)))) ||
-				is_name(argument, obj->name)))
-		{
-			if (--number < 1)
-				return obj;
-		}
+    
+    if (list == NULL) {
+        *nth = number;
+        return NULL;
     }
-
-    // Return last total for chaining together lookups
-	*nth = number;
+    
+    // Handle LLIST case safely
+    if (is_llist(list)) {
+        LLIST *llist = (LLIST *)list;
+        
+        iterator_start(&it, llist);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+            if (can_see_obj(ch, obj) && is_name(argument, obj->name)) {
+                if (--number < 1) {
+                    iterator_stop(&it);
+                    return obj;
+                }
+            }
+        }
+        iterator_stop(&it);
+        
+        *nth = number;
+        return NULL;
+    }
+    
+    // Traditional linked list case
+    for (obj = (OBJ_DATA *)list; obj != NULL; obj = obj->next_content) {
+        if (can_see_obj(ch, obj) && is_name(argument, obj->name)) {
+            if (--number < 1)
+                return obj;
+        }
+    }
+    
+    *nth = number;
     return NULL;
 }
-
 
 /*
  * Find an obj in player's locker.

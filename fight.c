@@ -75,7 +75,7 @@ void violence_update(void)
 	CHAR_DATA *victim;
 	OBJ_DATA *obj, *obj_next;
 	char buf[MSL];
-	ITERATOR ait;
+	ITERATOR ait, it;
 	long aid[2], vid[2];
 
 	// MK 100316 - Handle all combatants that are fighting to fire PREROUND before any combat is done each round.
@@ -177,13 +177,24 @@ void violence_update(void)
 		p_percent_trigger(ch, NULL, NULL, NULL, ch, victim, NULL, NULL, NULL, TRIG_FIGHT, NULL,0,0,0,0,0);
 		p_hprct_trigger(ch, victim,0,0,0,0,0);
 
-		for (obj = ch->carrying; obj; obj = obj_next)
-		{
-			obj_next = obj->next_content;
+        // Process carried items and fire their triggers
+        if (ch->lcarrying) {
+            iterator_start(&it, ch->lcarrying);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+                if (obj->wear_loc != WEAR_NONE)
+                    p_percent_trigger(NULL, obj, NULL, NULL, victim, NULL, NULL, NULL, NULL, TRIG_FIGHT, NULL,0,0,0,0,0);
+            }
+            iterator_stop(&it);
+        }
 
-			if (obj->wear_loc != WEAR_NONE)
-			p_percent_trigger(NULL, obj, NULL, NULL, ch, victim, NULL, NULL, NULL, TRIG_FIGHT, NULL,0,0,0,0,0);
-		}
+        // Process worn items and fire their triggers
+        if (ch->lworn) {
+            iterator_start(&it, ch->lworn);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+                p_percent_trigger(NULL, obj, NULL, NULL, victim, NULL, NULL, NULL, NULL, TRIG_FIGHT, NULL,0,0,0,0,0);
+            }
+            iterator_stop(&it);
+        }
 
 		p_percent_trigger(NULL, NULL, ch->in_room, NULL, ch, victim, NULL, NULL, NULL, TRIG_FIGHT, NULL,0,0,0,0,0);
 	}
@@ -3216,11 +3227,28 @@ OBJ_DATA *make_corpse(CHAR_DATA *ch, bool has_head, CORPSE_TYPE *corpse_type, in
 
 	set_corpse_type(corpse, corpse_type);
 
-	for (obj = ch->carrying; obj != NULL; obj = obj_next) {
-		obj_next = obj->next_content;
-		if (IS_SET(obj->extra[0],ITEM_ROT_DEATH) && !IS_NPC(ch))
-			extract_obj(obj);
-	}
+    // Process items in lcarrying
+    if (ch->lcarrying) {
+        ITERATOR it;
+
+        iterator_start(&it, ch->lcarrying);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+            if (IS_SET(obj->extra[0], ITEM_ROT_DEATH) && !IS_NPC(ch))
+                extract_obj(obj);
+        }
+        iterator_stop(&it);
+    }
+    
+    if (ch->lworn) {
+        ITERATOR it;
+        
+        iterator_start(&it, ch->lworn);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+            if (IS_SET(obj->extra[0], ITEM_ROT_DEATH) && !IS_NPC(ch))
+                extract_obj(obj);
+        }
+        iterator_stop(&it);
+    }
 
 	// 20070521 : NIB : If a PC and a chaotic Death, mark the corpse as a chaotic death
 	if(!IS_NPC(ch) && !IS_DEAD(ch) && !IS_IMMORTAL(ch))
@@ -3238,28 +3266,56 @@ OBJ_DATA *make_corpse(CHAR_DATA *ch, bool has_head, CORPSE_TYPE *corpse_type, in
 	// TODO: This was supposed to use nodrop, not no_uncurse
 	if (IS_NPC(ch)
 	|| (!IS_NPC(ch) && !IS_DEAD(ch) && IS_SET(ch->in_room->room_flag[0],ROOM_CHAOTIC)))
-	for (obj = ch->carrying; obj != NULL; obj = obj_next)
-	{
-		obj_next = obj->next_content;
+        if (ch->lcarrying) {
+            ITERATOR it;
+            
+            iterator_start(&it, ch->lcarrying);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+                if (!IS_SET(obj->extra[2], ITEM_ALWAYS_LOOT) && !IS_SET(obj->extra[2], ITEM_FORCE_LOOT)) {
+                    if ((IS_SET(obj->extra[0], ITEM_NOUNCURSE) && !IS_NPC(ch)) ||
+                        (IS_SET(obj->extra[1], ITEM_NO_LOOT) && !IS_NPC(ch)))
+                        continue;
+                }
 
-		if( !IS_SET(obj->extra[2], ITEM_ALWAYS_LOOT) && !IS_SET(obj->extra[2], ITEM_FORCE_LOOT) ) {
-			if ((IS_SET(obj->extra[0], ITEM_NOUNCURSE) && !IS_NPC(ch)) ||
-				(IS_SET(obj->extra[1], ITEM_NO_LOOT) && !IS_NPC(ch)))
-				continue;
-		}
+                obj_from_char(obj);
 
-		obj_from_char(obj);
+                // If dealing with an npc, treat no_loot items just like inventory items.
+                if ((!IS_SET(obj->extra[2], ITEM_ALWAYS_LOOT) && !IS_SET(obj->extra[2], ITEM_FORCE_LOOT) && 
+                     IS_SET(obj->extra[1], ITEM_NO_LOOT) && IS_NPC(ch)))
+                    extract_obj(obj);
+                else {
+                    REMOVE_BIT(obj->extra[2], ITEM_FORCE_LOOT);
+                    obj_to_obj(obj, corpse);
+                }
+            }
+            iterator_stop(&it);
+        }
+        
+        // Process worn items
+        if (ch->lworn) {
+            ITERATOR it;
+            
+            iterator_start(&it, ch->lworn);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+                if (!IS_SET(obj->extra[2], ITEM_ALWAYS_LOOT) && !IS_SET(obj->extra[2], ITEM_FORCE_LOOT)) {
+                    if ((IS_SET(obj->extra[0], ITEM_NOUNCURSE) && !IS_NPC(ch)) ||
+                        (IS_SET(obj->extra[1], ITEM_NO_LOOT) && !IS_NPC(ch)))
+                        continue;
+                }
 
-		// If dealing with an npc, treat no_loot items just like inventory items.
-		if (/*IS_SET(obj->extra[0], ITEM_INVENTORY) ||*/
-			(!IS_SET(obj->extra[2], ITEM_ALWAYS_LOOT) && !IS_SET(obj->extra[2], ITEM_FORCE_LOOT) && IS_SET(obj->extra[1], ITEM_NO_LOOT) && IS_NPC(ch)))
-			extract_obj(obj);
-		else
-		{
-			REMOVE_BIT(obj->extra[2], ITEM_FORCE_LOOT);
-			obj_to_obj(obj, corpse);
-		}
-	}
+                obj_from_char(obj);
+
+                // If dealing with an npc, treat no_loot items just like inventory items.
+                if ((!IS_SET(obj->extra[2], ITEM_ALWAYS_LOOT) && !IS_SET(obj->extra[2], ITEM_FORCE_LOOT) && 
+                     IS_SET(obj->extra[1], ITEM_NO_LOOT) && IS_NPC(ch)))
+                    extract_obj(obj);
+                else {
+                    REMOVE_BIT(obj->extra[2], ITEM_FORCE_LOOT);
+                    obj_to_obj(obj, corpse);
+                }
+            }
+            iterator_stop(&it);
+        }
 
 	if (IS_CART(corpse))
 	{
@@ -4024,6 +4080,7 @@ void group_gain(CHAR_DATA *ch, CHAR_DATA *victim, int percent)
 	char buf[MAX_STRING_LENGTH];
 	CHAR_DATA *gch;
 	int xp;
+	ITERATOR it;
 
 	// If is an NPC that can't level, verify this mob is grouped with a player in the room.
 	if (IS_NPC(ch) && !IS_SET(ch->act[1], ACT2_CANLEVEL))
@@ -4099,28 +4156,49 @@ void group_gain(CHAR_DATA *ch, CHAR_DATA *victim, int percent)
 			gain_exp(gch, NULL, pc_xp, true);
 		}
 
-		for (obj = gch->carrying; obj != NULL; obj = obj_next)
-		{
-			obj_next = obj->next_content;
-			if (obj->wear_loc == WEAR_NONE)
-				continue;
-
-			obj->tempstore[0] = xp;
-			obj->tempstore[1] = OBJ_XPGAIN_GROUP;	// 1
-			p_percent_trigger(NULL, obj, NULL, NULL, gch, NULL, NULL, NULL, NULL, TRIG_XPGAIN, NULL,0,0,0,0,0);
-
-
-			if ((IS_OBJ_STAT(obj, ITEM_ANTI_EVIL)    && IS_EVIL(gch)   )
-				||   (IS_OBJ_STAT(obj, ITEM_ANTI_GOOD)    && IS_GOOD(gch)   )
-				||   (IS_OBJ_STAT(obj, ITEM_ANTI_NEUTRAL) && IS_NEUTRAL(gch)))
-			{
-				act("You are zapped by $p.", gch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
-				act("$n is zapped by $p.",   gch, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
-				obj_from_char(obj);
-				obj_to_room(obj, gch->in_room);
-			}
-
-		}
+        // Process worn objects for XP triggers
+        if (gch->lworn) {
+            iterator_start(&it, gch->lworn);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+                obj->tempstore[0] = xp;
+                obj->tempstore[1] = OBJ_XPGAIN_GROUP;	// 1
+                p_percent_trigger(NULL, obj, NULL, NULL, gch, NULL, NULL, NULL, NULL, TRIG_XPGAIN, NULL,0,0,0,0,0);
+                
+                if ((IS_OBJ_STAT(obj, ITEM_ANTI_EVIL)    && IS_EVIL(gch)   )
+                    ||   (IS_OBJ_STAT(obj, ITEM_ANTI_GOOD)    && IS_GOOD(gch)   )
+                    ||   (IS_OBJ_STAT(obj, ITEM_ANTI_NEUTRAL) && IS_NEUTRAL(gch)))
+                {
+                    act("You are zapped by $p.", gch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+                    act("$n is zapped by $p.",   gch, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
+                    obj_from_char(obj);
+                    obj_to_room(obj, gch->in_room);
+                }
+            }
+            iterator_stop(&it);
+        }
+        
+        // Process carried objects for XP triggers
+        if (gch->lcarrying) {
+            iterator_start(&it, gch->lcarrying);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+                if (obj->wear_loc != WEAR_NONE) {
+                    obj->tempstore[0] = xp;
+                    obj->tempstore[1] = OBJ_XPGAIN_GROUP;	// 1
+                    p_percent_trigger(NULL, obj, NULL, NULL, gch, NULL, NULL, NULL, NULL, TRIG_XPGAIN, NULL,0,0,0,0,0);
+                    
+                    if ((IS_OBJ_STAT(obj, ITEM_ANTI_EVIL)    && IS_EVIL(gch)   )
+                        ||   (IS_OBJ_STAT(obj, ITEM_ANTI_GOOD)    && IS_GOOD(gch)   )
+                        ||   (IS_OBJ_STAT(obj, ITEM_ANTI_NEUTRAL) && IS_NEUTRAL(gch)))
+                    {
+                        act("You are zapped by $p.", gch, NULL, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+                        act("$n is zapped by $p.",   gch, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
+                        obj_from_char(obj);
+                        obj_to_room(obj, gch->in_room);
+                    }
+                }
+            }
+            iterator_stop(&it);
+        }
 	}
 }
 
@@ -4136,6 +4214,7 @@ int xp_compute(CHAR_DATA *gch, CHAR_DATA *victim)
 	int bonus_xp = 0;
 	int gch_level;
 	int diff_level;
+	ITERATOR it;
 
 	multiplier = victim->tot_level;
 	if (victim->tot_level < 30)			base_exp = 100;
@@ -4204,13 +4283,16 @@ int xp_compute(CHAR_DATA *gch, CHAR_DATA *victim)
 	gch->tempstore[0] = 0;
 	p_percent_trigger(gch,NULL, NULL, NULL, gch, NULL, NULL, NULL, NULL, TRIG_XPBONUS,NULL,0,0,0,0,0);
 	bonus_xp += gch->tempstore[0];
-	for (obj = gch->carrying; obj != NULL; obj = obj->next_content) {
-		if( obj->wear_loc != WEAR_NONE ) {
-			obj->tempstore[0] = 0;
+    if (gch->lworn) {
+        iterator_start(&it, gch->lworn);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+            obj->tempstore[0] = 0;
 			p_percent_trigger(NULL, obj, NULL, NULL, gch, NULL, NULL, NULL, NULL, TRIG_XPBONUS, NULL,0,0,0,0,0);
-			bonus_xp += obj->tempstore[0];
-		}
-	}
+            bonus_xp += obj->tempstore[0];
+
+        }
+        iterator_stop(&it);
+    }
 	gch->in_room->tempstore[0] = 0;
 	p_percent_trigger(NULL, NULL, gch->in_room, NULL, gch, NULL, NULL, NULL, NULL, TRIG_XPBONUS, NULL,0,0,0,0,0);
 	bonus_xp += gch->in_room->tempstore[0];

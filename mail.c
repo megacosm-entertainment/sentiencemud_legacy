@@ -229,6 +229,7 @@ void do_mailadd(CHAR_DATA *ch, char *argument)
     char arg[MSL];
     char buf[MSL];
     OBJ_DATA *obj, *obj_next;
+	ITERATOR it;
 
     if ((mail = ch->mail) == NULL)
     {
@@ -244,13 +245,15 @@ void do_mailadd(CHAR_DATA *ch, char *argument)
     }
 
     // Put obj mail
+    // Put obj mail
     if (str_cmp(arg, "all") && str_prefix("all.", arg))
     {
-	if ((obj = get_obj_list(ch, arg, ch->carrying)) == NULL)
-	{
-	    send_to_char("You do not have that object.\n\r", ch);
-	    return;
-	}
+        if ((obj = get_obj_list(ch, arg, ch->lcarrying)) == NULL)
+        {
+            send_to_char("You do not have that object.\n\r", ch);
+            return;
+        }
+	
 
 	if (!can_put_obj(ch, obj, NULL, mail, false))
 	    return;
@@ -275,26 +278,29 @@ void do_mailadd(CHAR_DATA *ch, char *argument)
 	    i = 0;
 	    match_obj = NULL;
 
-	    for (obj = ch->carrying; obj != NULL; obj = obj_next)
-	    {
-		obj_next = obj->next_content;
-
-		if ((arg[3] == '\0' || is_name(&arg[4], obj->name))
-		&&  can_put_obj(ch, obj, NULL, mail, true))
-		{
-		    sprintf(short_descr, "%s", obj->short_descr);
-		    found = true;
-		    any = true;
-		    break;
-		}
-	    }
+            // Use iterator to traverse lcarrying
+            if (ch->lcarrying) {
+                iterator_start(&it, ch->lcarrying);
+                while ((obj = (OBJ_DATA *)iterator_nextdata(&it)))
+                {
+                    if ((arg[3] == '\0' || is_name(&arg[4], obj->name))
+                    && can_put_obj(ch, obj, NULL, mail, true))
+                    {
+                        sprintf(short_descr, "%s", obj->short_descr);
+                        found = true;
+                        any = true;
+                        break;
+                    }
+                }
+                iterator_stop(&it);
+            }
 
 	    if (found)
 	    {
-		for (obj = ch->carrying; obj != NULL; obj = obj_next)
-		{
-		    obj_next = obj->next_content;
-
+                if (ch->lcarrying) {
+                    iterator_start(&it, ch->lcarrying);
+                    while ((obj = (OBJ_DATA *)iterator_nextdata(&it)))
+                    {
 		    if (str_cmp(obj->short_descr, short_descr)
 		    ||  !can_put_obj(ch, obj, NULL, mail, true))
 			continue;
@@ -336,6 +342,8 @@ void do_mailadd(CHAR_DATA *ch, char *argument)
 		    obj_to_mail(obj, mail);
 		    i++;
 		}
+		iterator_stop(&it);
+	}
 
 		if (i > 0 && match_obj != NULL)
 		{

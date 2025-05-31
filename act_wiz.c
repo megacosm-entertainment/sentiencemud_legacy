@@ -8363,52 +8363,57 @@ void do_string(CHAR_DATA *ch, char *argument)
 {
     char arg[MAX_INPUT_LENGTH];
     char arg2[MAX_INPUT_LENGTH];
-//    char buf[MSL];
     OBJ_DATA *obj;
 
     smash_tilde(argument);
+
+    // Parse object and field
     argument = one_argument(argument, arg);
     argument = one_argument(argument, arg2);
 
-    if (arg[0] == '\0' || arg2[0] == '\0' || argument[0] == '\0' )
+    // Check for missing arguments
+    if (arg[0] == '\0' || arg2[0] == '\0' || argument[0] == '\0')
     {
-	send_to_char("Syntax:\n\r",ch);
-	send_to_char("  string <object> <field> <string>\n\r",ch);
-	send_to_char("  fields: name short long\n\r",ch);
-	return;
+        send_to_char("Syntax:\n\r", ch);
+        send_to_char("  string <object> <field> <string>\n\r", ch);
+        send_to_char("  fields: name short long\n\r", ch);
+        return;
     }
 
-    if ((obj = get_obj_list(ch, arg, ch->carrying)) == NULL)
+    // Find object in inventory
+    if ((obj = get_obj_list(ch, arg, ch->lcarrying)) == NULL)
     {
-	send_to_char("Nothing like that in your inventory.\n\r", ch);
-	return;
+        send_to_char("Nothing like that in your inventory.\n\r", ch);
+        return;
     }
 
+    // Set the appropriate field
     if (!str_prefix(arg2, "name"))
     {
-	free_string(obj->name);
-	obj->name = str_dup(argument);
-	act("Strung $p's name to '$t'.", ch, NULL, NULL, obj, NULL, argument, NULL, TO_CHAR, NULL, NULL);
-	return;
+        free_string(obj->name);
+        obj->name = str_dup(argument);
+        act("Strung $p's name to '$t'.", ch, NULL, NULL, obj, NULL, argument, NULL, TO_CHAR, NULL, NULL);
+        return;
     }
 
     if (!str_prefix(arg2, "short"))
     {
-	free_string(obj->short_descr);
-	obj->short_descr = str_dup(argument);
-	act("Strung $p's short to '$t'.", ch, NULL, NULL, obj, NULL, argument, NULL, TO_CHAR, NULL, NULL);
-	return;
+        free_string(obj->short_descr);
+        obj->short_descr = str_dup(argument);
+        act("Strung $p's short to '$t'.", ch, NULL, NULL, obj, NULL, argument, NULL, TO_CHAR, NULL, NULL);
+        return;
     }
 
     if (!str_prefix(arg2, "long"))
     {
-	free_string(obj->description);
-	obj->description = str_dup(argument);
-	act("Strung $p's long to '$t'.", ch, NULL, NULL, obj, NULL, argument, NULL, TO_CHAR, NULL, NULL);
-	return;
+        free_string(obj->description);
+        obj->description = str_dup(argument);
+        act("Strung $p's long to '$t'.", ch, NULL, NULL, obj, NULL, argument, NULL, TO_CHAR, NULL, NULL);
+        return;
     }
 
-    do_function(ch, &do_string, "");
+    // If field is not recognized, show syntax
+    send_to_char("Valid fields: name short long\n\r", ch);
 }
 
 

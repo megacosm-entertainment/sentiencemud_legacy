@@ -1238,6 +1238,8 @@ bool spec_magic_master( CHAR_DATA *ch )
 bool spec_fight_bot( CHAR_DATA *ch ) {
    CHAR_DATA *victim;
    char buf[MAX_STRING_LENGTH];
+   ITERATOR it;
+   OBJ_DATA *obj;
 
    if ( ch->position != POS_FIGHTING )
    {
@@ -1284,25 +1286,35 @@ bool spec_fight_bot( CHAR_DATA *ch ) {
 
    if (!IS_AFFECTED(ch, AFF_SANCTUARY))
    {
-	   OBJ_DATA *obj;
-	   OBJ_DATA *obj_next;
+       // Remove all equipment using lworn
+       if (ch->lworn) {
+           iterator_start(&it, ch->lworn);
+           while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+               if (can_see_obj(ch, obj)) {
+                   // Save the iterator state and remove object
+                   iterator_stop(&it);
+                   remove_obj(ch, obj->wear_loc, true);
+                   // Restart iterator since we modified the list
+                   iterator_start(&it, ch->lworn);
+               }
+           }
+           iterator_stop(&it);
+       }
 
-		for ( obj = ch->carrying; obj != NULL; obj = obj->next_content )
-		{
-
-			if ( obj->wear_loc != WEAR_NONE
-			&&   can_see_obj( ch, obj ))
-			{
-				remove_obj( ch, obj->wear_loc, true );
-			}
-		}
-
-		for ( obj = ch->carrying; obj != NULL; obj = obj_next )
-		{
-			obj_next = obj->next_content;
-			if ( obj->wear_loc == WEAR_NONE && can_see_obj( ch, obj ) )
-			wear_obj( ch, obj, false );
-		}
+       // Wear all inventory items using lcarrying
+       if (ch->lcarrying) {
+           iterator_start(&it, ch->lcarrying);
+           while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+               if (obj->wear_loc == WEAR_NONE && can_see_obj(ch, obj)) {
+                   // Save the iterator state and wear object
+                   iterator_stop(&it);
+                   wear_obj(ch, obj, false);
+                   // Restart iterator since we modified the list
+                   iterator_start(&it, ch->lcarrying);
+               }
+           }
+           iterator_stop(&it);
+       }
    }
 
    if (!IS_AFFECTED(victim, AFF_BLIND))
@@ -1342,6 +1354,8 @@ bool spec_fight_bot( CHAR_DATA *ch ) {
 bool spec_pirate( CHAR_DATA *ch ) {
 	CHAR_DATA *victim;
 	char buf[MAX_STRING_LENGTH];
+    ITERATOR it;
+    OBJ_DATA *obj;
 
 	if ( ch->position != POS_FIGHTING )
 	{
@@ -1384,28 +1398,38 @@ bool spec_pirate( CHAR_DATA *ch ) {
 		return true;
 	}
 
-	if (!IS_AFFECTED(ch, AFF_SANCTUARY))
-	{
-		OBJ_DATA *obj;
-		OBJ_DATA *obj_next;
+    if (!IS_AFFECTED(ch, AFF_SANCTUARY))
+    {
+        // Remove all equipment using lworn
+        if (ch->lworn) {
+            iterator_start(&it, ch->lworn);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+                if (can_see_obj(ch, obj)) {
+                    // Save the iterator state and remove object
+                    iterator_stop(&it);
+                    remove_obj(ch, obj->wear_loc, true);
+                    // Restart iterator since we modified the list
+                    iterator_start(&it, ch->lworn);
+                }
+            }
+            iterator_stop(&it);
+        }
 
-		for ( obj = ch->carrying; obj != NULL; obj = obj->next_content )
-		{
-
-			if ( obj->wear_loc != WEAR_NONE
-					&&   can_see_obj( ch, obj ))
-			{
-				remove_obj( ch, obj->wear_loc, true );
-			}
-		}
-
-		for ( obj = ch->carrying; obj != NULL; obj = obj_next )
-		{
-			obj_next = obj->next_content;
-			if ( obj->wear_loc == WEAR_NONE && can_see_obj( ch, obj ) )
-				wear_obj( ch, obj, false );
-		}
-	}
+        // Wear all inventory items using lcarrying
+        if (ch->lcarrying) {
+            iterator_start(&it, ch->lcarrying);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+                if (obj->wear_loc == WEAR_NONE && can_see_obj(ch, obj)) {
+                    // Save the iterator state and wear object
+                    iterator_stop(&it);
+                    wear_obj(ch, obj, false);
+                    // Restart iterator since we modified the list
+                    iterator_start(&it, ch->lcarrying);
+                }
+            }
+            iterator_stop(&it);
+        }
+    }
 
 	if (!IS_AFFECTED(victim, AFF_BLIND) && number_percent() < 5)
 	{

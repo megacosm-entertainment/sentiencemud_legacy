@@ -1459,7 +1459,8 @@ void update_area_trade( void )
 // Update all chars, including mobs
 void char_update(void)
 {
-    ITERATOR it, tit;
+    ITERATOR it, tit, oit;
+	OBJ_DATA *obj;
     char buf[MSL];
     CHAR_DATA *ch;
     CHAR_DATA *ch_quit;
@@ -1664,9 +1665,10 @@ void char_update(void)
 		    OBJ_DATA *obj, *obj_next;
 
 			// Decrease lights
-			for(obj = ch->carrying; obj; obj = obj_next)
-			{
-				obj_next = obj->next_content;
+            // Check for light in inventory
+            if (ch->lworn) {
+                iterator_start(&oit, ch->lworn);
+                while ((obj = (OBJ_DATA *)iterator_nextdata(&oit))) {
 				if (IS_LIGHT(obj) && IS_SET(LIGHT(obj)->flags, LIGHT_IS_ACTIVE) && LIGHT(obj)->duration > 0)
 				{
 					bool was_lit = light_char_has_light(ch);
@@ -1694,6 +1696,9 @@ void char_update(void)
 					else if (LIGHT(obj)->duration <= 5 && ch->in_room != NULL)
 						act("$p flickers.",ch, NULL, NULL,obj, NULL, NULL,NULL,TO_CHAR, NULL, NULL);
 				}
+			}
+				iterator_stop(&oit);
+			}
 			}
 
 			// Limbo timer (doesn't apply to imms)
@@ -1844,8 +1849,11 @@ void char_update(void)
 			}
 
 		    // Anti-evil/anti-good items scorch and get dropped.
-		    if (!IS_NPC(ch))
-			    for (obj = ch->carrying; obj != NULL; obj = obj->next_content)
+		    if (!IS_NPC(ch)){
+			ITERATOR oit;
+                if (ch->lcarrying) {
+                    iterator_start(&oit, ch->lcarrying);
+                    while ((obj = (OBJ_DATA *)iterator_nextdata(&oit))) {
 			    {
 					char buf[MAX_STRING_LENGTH];
 
@@ -1857,13 +1865,33 @@ void char_update(void)
 						sprintf(buf, "{RYou are scorched by %s!{x\n\r", obj->short_descr);
 						send_to_char(buf, ch);
 
-						if (obj->wear_loc != WEAR_NONE)
-							remove_obj(ch, obj->wear_loc, true);
-
 						do_function(ch, &do_drop, obj->name);
 						damage(ch, ch, obj->level, NULL, TYPE_UNDEFINED, DAM_NONE,false);
 					}
 				}
+			}
+					iterator_stop(&oit);
+				}
+				if (ch->lworn){
+					iterator_start(&oit, ch->lworn);
+					while ((obj = (OBJ_DATA *)iterator_nextdata(&oit))) {
+						if ((ch->alignment < 0 && IS_OBJ_STAT(obj, ITEM_ANTI_EVIL)) ||
+							(ch->alignment > 0 && IS_OBJ_STAT(obj, ITEM_ANTI_GOOD)))
+						{
+							char buf[MAX_STRING_LENGTH];
+							sprintf(buf, "{R$n is scorched by %s!{x", obj->short_descr);
+							act(buf, ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
+							sprintf(buf, "{RYou are scorched by %s!{x\n\r", obj->short_descr);
+							send_to_char(buf, ch);
+
+							do_function(ch, &do_remove, obj->name);
+							do_function(ch, &do_drop, obj->name);
+							damage(ch, ch, obj->level, NULL, TYPE_UNDEFINED, DAM_NONE,false);
+						}
+					}
+					iterator_stop(&oit);
+				}
+			}
 
 			// No magical flying over the ocean.  Physical flight is ok
 			if (ch->in_room->sector == gsct_water_noswim &&

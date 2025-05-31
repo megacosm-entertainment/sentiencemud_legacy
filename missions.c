@@ -564,10 +564,18 @@ void do_mission(CHAR_DATA *ch, char *argument)
 
 			case MISSIONARY_OBJ:
 				// Check inventory first?
-				for (obj = ch->carrying; obj != NULL; obj = obj->next_content)
+				if (ch->lcarrying)
 				{
-					if (wnum_match_obj(mission->giver, obj))
-						break;
+					ITERATOR it;
+					iterator_start(&it, ch->lcarrying);
+					for (obj = (OBJ_DATA *)iterator_nextdata(&it); obj != NULL; obj = (OBJ_DATA *)iterator_nextdata(&it))
+					{
+						if (wnum_match_obj(mission->giver, obj))
+						{
+							break;
+						}
+					}
+					iterator_stop(&it);
 				}
 				if( obj == NULL )
 				{
@@ -696,13 +704,19 @@ void do_mission(CHAR_DATA *ch, char *argument)
 
 		case MISSIONARY_OBJ:
 			// Check inventory first?
-			for (obj = ch->carrying; obj != NULL; obj = obj->next_content)
+			if (ch->lcarrying)
+			{
+			ITERATOR it;
+			iterator_start(&it, ch->lcarrying);
+			for (obj = (OBJ_DATA *)iterator_nextdata(&it); obj != NULL; obj = (OBJ_DATA *)iterator_nextdata(&it))
 			{
 				if (wnum_match_obj(mission->receiver, obj))
 				{
 					tempstores = obj->tempstore;
 					break;
 				}
+			}
+			iterator_stop
 			}
 			if( obj == NULL )
 			{

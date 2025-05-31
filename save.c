@@ -363,19 +363,6 @@ void save_char_obj(CHAR_DATA *ch)
         }
     }
 
-if (ch->carrying_temp && ch->version < VERSION_PLAYER_011) {
-    OBJ_DATA *obj = ch->carrying_temp;
-    OBJ_DATA *next;
-    while (obj) {
-        next = obj->next_content;
-        obj_to_char(obj, ch);
-        obj = next;
-    }
-    ch->carrying_temp = NULL;
-    ch->version = VERSION_PLAYER_011;
-	save_char_obj(ch);
-}
-
     fclose(fpReserve);
     sprintf(strsave, "%s%c/%s", PLAYER_DIR, tolower(ch->name[0]), capitalize(ch->name));
     if ((fp = fopen(TEMP_FILE, "w")) == NULL)
@@ -403,18 +390,21 @@ if (ch->carrying_temp && ch->version < VERSION_PLAYER_011) {
 		fprintf(fp, "#ENDEQUIPMENT\n");
 
 
-		fprintf(fp, "#INVENTORY\n");
-		OBJ_DATA *obj, *next;
-		for (obj = ch->carrying; obj != NULL; obj = next) {
-    		next = obj->next_content;
-    		// Only write unequipped, non-locker, top-level objects
-    		if (obj->wear_loc == WEAR_NONE && !obj->locker && obj->in_obj == NULL && list_haslink(loaded_objects, obj)) {
-        		obj->next_content = NULL; // Prevent recursion through the list
-        		fwrite_obj_new(ch, obj, fp, 0);
-        		obj->next_content = next; // Restore the link
-    		}
-		}
-		fprintf(fp, "#ENDINVENTORY\n");
+        // Write inventory section
+        fprintf(fp, "#INVENTORY\n");
+        if (ch->lcarrying && IS_VALID(ch->lcarrying)) {
+            ITERATOR it;
+            OBJ_DATA *obj;
+            iterator_start(&it, ch->lcarrying);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+                // Only write non-locker, top-level objects
+                if (!obj->locker && obj->in_obj == NULL && list_haslink(loaded_objects, obj)) {
+                    fwrite_obj_new(ch, obj, fp, 0);
+                }
+            }
+            iterator_stop(&it);
+        }
+        fprintf(fp, "#ENDINVENTORY\n");
 
 
         // Write locker section
@@ -430,6 +420,36 @@ if (ch->carrying_temp && ch->version < VERSION_PLAYER_011) {
                 if (token_should_save(token))
                     fwrite_token(token, fp);
         }
+
+        // Write locker section
+        fprintf(fp, "#LOCKER\n");
+        if (ch->llocker && IS_VALID(ch->llocker)) {
+            ITERATOR it;
+            OBJ_DATA *obj;
+            iterator_start(&it, ch->llocker);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+                if (list_haslink(loaded_objects, obj)) {
+                    fwrite_obj_new(ch, obj, fp, 0);
+                }
+            }
+            iterator_stop(&it);
+        }
+        fprintf(fp, "#ENDLOCKER\n");
+
+		// Write quest item section
+		fprintf(fp, "#QUESTITEMS\n");
+		if (ch->lquestitems && IS_VALID(ch->lquestitems)) {
+			ITERATOR it;
+			OBJ_DATA *qobj;
+			iterator_start(&it, ch->lquestitems);
+			while ((qobj = (OBJ_DATA *)iterator_nextdata(&it))) {
+				if (!qobj->locker && qobj->in_obj == NULL && list_haslink(loaded_objects, qobj)) {
+					fwrite_obj_new(ch, qobj, fp, 0);
+				}
+			}
+			iterator_stop(&it);
+		}
+		fprintf(fp, "#ENDQUESTITEMS\n");
 
         fwrite_stache_char(ch, fp);
         fwrite_skills(ch, fp);
@@ -1041,6 +1061,7 @@ bool load_char_obj(DESCRIPTOR_DATA *d, char *name)
     TOKEN_DATA *token;
     pVARIABLE last_var = variable_tail;
     char *section = NULL;
+	int iNest;
 
     __init_player_versioning(&__versioning);
 
@@ -1080,7 +1101,6 @@ bool load_char_obj(DESCRIPTOR_DATA *d, char *name)
     ch->morphed = false;
     ch->locker_rent = 0;
     ch->deathsight_vision = 0;
-    ch->carrying_temp = NULL; // for migration
 
     fclose(fpReserve);
     sprintf(strsave, "%s%c/%s", PLAYER_DIR, tolower(name[0]), capitalize(name));
@@ -1104,6 +1124,8 @@ bool load_char_obj(DESCRIPTOR_DATA *d, char *name)
             if (!str_cmp(word, "ENDINVENTORY")) { section = NULL; continue; }
             if (!str_cmp(word, "LOCKER")) { section = "LOCKER"; continue; }
             if (!str_cmp(word, "ENDLOCKER")) { section = NULL; continue; }
+			if (!str_cmp(word, "QUESTITEMS")) { section = "QUESTITEMS"; continue; }
+			if (!str_cmp(word, "ENDQUESTITEMS")) { section = NULL; continue; }
 
             if (!str_cmp(word, "PLAYER")) {
                 fread_char(ch, fp, &__versioning);
@@ -1112,62 +1134,65 @@ bool load_char_obj(DESCRIPTOR_DATA *d, char *name)
                 if (!obj) continue;
 
 
-                objNestList[obj->nest] = obj;
-
-                if (section) {
-					//log_string(formatf("Loading object %s into section %s for %s\n", obj->name, section, ch->name));
-                    if (!str_cmp(section, "LOCKER")) {
-                        obj_to_locker(obj, ch);
-                    } 
-					/*
-					else if (!str_cmp(section, "EQUIPMENT")) {
-                        obj_to_char(obj, ch);
-                        if (obj->wear_loc != WEAR_NONE)
-                            list_addlink(ch->lworn, obj);
-                    } 
-					*/
-				else if (!str_cmp(section, "EQUIPMENT") || !str_cmp(section, "INVENTORY")) {
     objNestList[obj->nest] = obj;
-    if (obj->nest == 0) {
-        obj_to_char(obj, ch);
-    } else {
-        OBJ_DATA *container = objNestList[obj->nest - 1];
-        if (container && IS_CONTAINER(container))
-            obj_to_obj(obj, container);
-        else
-            obj_to_char(obj, ch); // fallback if container is missing
-    }
-    // For equipped items, add to lworn if needed
-    if (!str_cmp(section, "EQUIPMENT") && obj->wear_loc != WEAR_NONE)
-        list_addlink(ch->lworn, obj);
-}
-					else if (!str_cmp(section, "INVENTORY")) {
-                        if (obj->nest == 0) {
-                            obj_to_char(obj, ch);
-                        } else {
-                            OBJ_DATA *container = objNestList[obj->nest - 1];
-                            if (container && IS_CONTAINER(container))
-                                obj_to_obj(obj, container);
-                            else
-                                obj_to_char(obj, ch);
-                        }
-                    }
-                } else if (section == NULL && ch->version < VERSION_PLAYER_011) {
-					//log_stringf("Old character, no sections. Loading object %s into inventory (ch->carrying_temp) for %s\n", obj->name, ch->name);
-    				if (obj->nest == 0) {
-        				obj_to_char_temp(obj, ch);
-    				} else {
-        				OBJ_DATA *container = objNestList[obj->nest - 1];
-        				if (container && IS_CONTAINER(container))
-            			obj_to_obj(obj, container);
-        			else
-            			obj_to_char_temp(obj, ch); // fallback if container is missing
-    				}
-				}
-				else if (ch->version >= VERSION_PLAYER_011 && !section)
-				{
-					//log_stringf("New character, no sections. Not loading %s\n", obj->name);
-					continue;
+
+    // Handle the object based on section
+    if (section) {
+        if (!str_cmp(section, "LOCKER")) {
+            if (obj->nest == 0) {
+                obj_to_locker(obj, ch);
+            } else if (objNestList[obj->nest-1] &&
+                       (IS_CONTAINER(objNestList[obj->nest-1]))) {
+                obj_to_obj(obj, objNestList[obj->nest-1]);
+            } else {
+                obj_to_locker(obj, ch);
+            }
+        } else if (!str_cmp(section, "EQUIPMENT") || !str_cmp(section, "INVENTORY")) {
+            if (obj->nest == 0) {
+                obj_to_char(obj, ch);
+                // For equipped items, add to lworn if needed
+                if (!str_cmp(section, "EQUIPMENT") && obj->wear_loc != WEAR_NONE)
+                    list_addlink(ch->lworn, obj);
+            } else if (objNestList[obj->nest-1] &&
+                       (IS_CONTAINER(objNestList[obj->nest-1]))) {
+                obj_to_obj(obj, objNestList[obj->nest-1]);
+            } else {
+                obj_to_char(obj, ch);
+            }
+        } else if (!str_cmp(section, "QUESTITEMS")) {
+            if (obj->nest == 0) {
+                list_appendlink(ch->lquestitems, obj);
+                obj->carried_by = ch;
+            } else if (objNestList[obj->nest-1] &&
+                       (IS_CONTAINER(objNestList[obj->nest-1]))) {
+                obj_to_obj(obj, objNestList[obj->nest-1]);
+            } else {
+                list_appendlink(ch->lquestitems, obj);
+                obj->carried_by = ch;
+            }
+        }
+    } else if (section == NULL && ch->version < VERSION_PLAYER_011) {
+        // For older character files without sections, migrate objects
+        if (obj->nest == 0) {
+            if (obj->locker) {
+                obj_to_locker(obj, ch);
+            } else if (obj->wear_loc != WEAR_NONE) {
+                obj_to_char(obj, ch);
+                list_addlink(ch->lworn, obj);
+            } else {
+                obj_to_char(obj, ch);
+            }
+        } else if (objNestList[obj->nest-1] &&
+                   (IS_CONTAINER(objNestList[obj->nest-1]) ||
+                    objNestList[obj->nest-1]->item_type == ITEM_WEAPON_CONTAINER ||
+                    objNestList[obj->nest-1]->item_type == ITEM_KEYRING)) {
+            obj_to_obj(obj, objNestList[obj->nest-1]);
+        } else {
+            obj_to_char(obj, ch);
+        }
+    } else if (ch->version >= VERSION_PLAYER_011 && !section) {
+        // New character, no sections, skip loading
+        continue;
 				}
 				
 			}
@@ -7543,37 +7568,37 @@ void fix_character(CHAR_DATA *ch, struct __player_data_versioning *__versioning)
 		}
 
 		// Iterate through all worn objects
-			ITERATOR it;
-			OBJ_DATA *obj;
-			iterator_start(&it, ch->lworn);
-			while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
-    		for (paf = obj->affected; paf; paf = paf->next) {
-				{
-					switch (paf->where)
-					{
-						case TO_AFFECTS:
-							SET_BIT(ch->affected_by[0], paf->bitvector);
-							SET_BIT(ch->affected_by[1], paf->bitvector2);
+        if (ch->lworn && IS_VALID(ch->lworn)) {
+            ITERATOR it;
+            OBJ_DATA *obj;
+            iterator_start(&it, ch->lworn);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+                for (paf = obj->affected; paf; paf = paf->next) {
+                    switch (paf->where)
+                    {
+                        case TO_AFFECTS:
+                            SET_BIT(ch->affected_by[0], paf->bitvector);
+                            SET_BIT(ch->affected_by[1], paf->bitvector2);
 
-							if( IS_SET(paf->bitvector2, AFF2_DEATHSIGHT) && (paf->level > ch->deathsight_vision) )
-								ch->deathsight_vision = paf->level;
+                            if( IS_SET(paf->bitvector2, AFF2_DEATHSIGHT) && (paf->level > ch->deathsight_vision) )
+                                ch->deathsight_vision = paf->level;
 
-							break;
-						case TO_IMMUNE:
-							SET_BIT(ch->imm_flags,paf->bitvector);
-							break;
-						case TO_RESIST:
-							SET_BIT(ch->res_flags,paf->bitvector);
-							break;
-						case TO_VULN:
-							SET_BIT(ch->vuln_flags,paf->bitvector);
-							break;
-					}
-				}
-			}
-			iterator_stop(&it);
-		}
-	}
+                            break;
+                        case TO_IMMUNE:
+                            SET_BIT(ch->imm_flags,paf->bitvector);
+                            break;
+                        case TO_RESIST:
+                            SET_BIT(ch->res_flags,paf->bitvector);
+                            break;
+                        case TO_VULN:
+                            SET_BIT(ch->vuln_flags,paf->bitvector);
+                            break;
+                    }
+                }
+            }
+            iterator_stop(&it);
+        }
+    }
 
 	// Update deathsight vision
 	ch->deathsight_vision = ( IS_SET(ch->affected_by_perm[1], AFF2_DEATHSIGHT) ) ? ch->tot_level : 0;
@@ -7582,21 +7607,28 @@ void fix_character(CHAR_DATA *ch, struct __player_data_versioning *__versioning)
 		if( (paf->where == TO_AFFECTS) && IS_SET(paf->bitvector2, AFF2_DEATHSIGHT) && (paf->level > ch->deathsight_vision) )
 			ch->deathsight_vision = paf->level;
 	}
-	for(obj = ch->carrying; obj; obj = obj->next_content)
-	{
-		if( !obj->locker && obj->wear_loc != WEAR_NONE )
-		{
-			for(paf = obj->affected; paf; paf = paf->next)
-			{
-				if( (paf->where == TO_AFFECTS) && IS_SET(paf->bitvector2, AFF2_DEATHSIGHT) && (paf->level > ch->deathsight_vision) )
-					ch->deathsight_vision = paf->level;
-			}
-		}
-	}
+    if (ch->lworn && IS_VALID(ch->lworn)) {
+        ITERATOR it;
+        OBJ_DATA *obj;
+        iterator_start(&it, ch->lworn);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+            for(paf = obj->affected; paf; paf = paf->next)
+            {
+                if( (paf->where == TO_AFFECTS) && IS_SET(paf->bitvector2, AFF2_DEATHSIGHT) && (paf->level > ch->deathsight_vision) )
+                    ch->deathsight_vision = paf->level;
+            }
+        }
+        iterator_stop(&it);
+    }
 
 	// Fix all object lockstates
-	for(obj = ch->carrying; obj; obj = obj->next_content)
+	ITERATOR it;
+	iterator_start(&it, ch->lcarrying);
+	while((obj = (OBJ_DATA *)iterator_nextdata(&it)))
+	{
 		fix_object_lockstate(obj);
+	}
+	iterator_stop(&it);
 
     ch->form = ch->race->form;
     ch->parts = ch->race->parts & ~ch->lostparts;
@@ -9530,20 +9562,6 @@ ACCOUNT_DATA *find_account_by_name(char *username)
     }
 }
 
-
-
-void obj_to_char_temp(OBJ_DATA *obj, CHAR_DATA *ch)
-{
-    obj->next_content = ch->carrying_temp;
-    ch->carrying_temp = obj;
-    obj->carried_by = ch;
-    obj->in_room = ch->in_room;
-    // Only add to lworn if equipped
-    if (obj->wear_loc != WEAR_NONE)
-        list_addlink(ch->lworn, obj);
-    // DO NOT add to lcarrying here!
-}
-
 // Helper to dedupe a linked list of objects recursively
 static void dedupe_obj_list(OBJ_DATA **head, LLIST *seen, LLIST *lworn) {
     OBJ_DATA *obj = *head, *prev = NULL, *next;
@@ -9586,30 +9604,128 @@ static void dedupe_obj_list(OBJ_DATA **head, LLIST *seen, LLIST *lworn) {
 
 void remove_duplicate_objects_from_char(CHAR_DATA *ch) {
     LLIST *seen = list_create(FALSE);
-    LLIST *lworn = list_create(FALSE);
+    LLIST *obj_seen = list_create(FALSE);
+	OBJ_DATA *obj;
+	ITERATOR it;
 
     // 1. Add all equipped objects to seen and lworn first (so they are prioritized)
-    ITERATOR it;
-    OBJ_DATA *obj;
-    iterator_start(&it, ch->lworn);
-    while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
-        if (!list_contains(seen, obj, NULL)) {
+    if (ch->lworn && IS_VALID(ch->lworn)) {
+        iterator_start(&it, ch->lworn);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
             list_appendlink(seen, obj);
+            list_appendlink(obj_seen, obj);
+            
+            // Recursively add contents of worn items
+            if (obj->contains) {
+                OBJ_DATA *content;
+                content = obj->contains;
+                while (content) {
+                    list_appendlink(seen, content);
+                    content = content->next_content;
+                }
+            }
         }
-        if (!list_contains(lworn, obj, NULL)) {
-            list_appendlink(lworn, obj);
-        }
+        iterator_stop(&it);
     }
-    iterator_stop(&it);
 
-    // 2. Dedupe carrying, carrying_temp, and locker against seen, but don't remove if in lworn
-    OBJ_DATA **lists[3] = { &ch->carrying, &ch->carrying_temp, &ch->locker };
-    for (int l = 0; l < 3; l++) {
-        dedupe_obj_list(lists[l], seen, lworn);
+    // 2. Process carried items (lcarrying)
+    if (ch->lcarrying && IS_VALID(ch->lcarrying)) {
+        LLIST *remove_list = list_create(FALSE);
+        
+        iterator_start(&it, ch->lcarrying);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+            bool duplicate = false;
+            ITERATOR dit;
+            OBJ_DATA *exist;
+            
+            // Check if this object is a duplicate
+            iterator_start(&dit, seen);
+            while ((exist = (OBJ_DATA *)iterator_nextdata(&dit))) {
+                if (exist != obj && exist->id[0] == obj->id[0] && 
+                    exist->id[1] == obj->id[1] &&
+                    exist->pIndexData == obj->pIndexData) {
+                    duplicate = true;
+                    break;
+                }
+            }
+            iterator_stop(&dit);
+            
+            if (duplicate && !list_contains(ch->lworn, obj, NULL)) {
+                // Mark for removal after iteration - only if not worn
+                list_appendlink(remove_list, obj);
+            } else {
+                // Add to seen list
+                list_appendlink(seen, obj);
+                list_appendlink(obj_seen, obj);
+                
+                // Process contents recursively
+                if (obj->contains) {
+                    dedupe_obj_list(&obj->contains, seen, ch->lworn);
+                }
+            }
+        }
+        iterator_stop(&it);
+        
+        // Now remove any duplicates from lcarrying
+        iterator_start(&it, remove_list);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+            list_remlink(ch->lcarrying, obj, FALSE);
+        }
+        iterator_stop(&it);
+        
+        list_destroy(remove_list);
+    }
+    
+    // 3. Process locker items (llocker)
+    if (ch->llocker && IS_VALID(ch->llocker)) {
+        LLIST *remove_list = list_create(FALSE);
+        
+        iterator_start(&it, ch->llocker);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+            bool duplicate = false;
+            ITERATOR dit;
+            OBJ_DATA *exist;
+            
+            // Check if this object is a duplicate
+            iterator_start(&dit, seen);
+            while ((exist = (OBJ_DATA *)iterator_nextdata(&dit))) {
+                if (exist != obj && exist->id[0] == obj->id[0] && 
+                    exist->id[1] == obj->id[1] &&
+                    exist->pIndexData == obj->pIndexData) {
+                    duplicate = true;
+                    break;
+                }
+            }
+            iterator_stop(&dit);
+            
+            if (duplicate && !list_contains(ch->lworn, obj, NULL)) {
+                // Mark for removal after iteration - only if not worn
+                list_appendlink(remove_list, obj);
+            } else {
+                // Add to seen list
+                list_appendlink(seen, obj);
+                list_appendlink(obj_seen, obj);
+                
+                // Process contents recursively
+                if (obj->contains) {
+                    dedupe_obj_list(&obj->contains, seen, ch->lworn);
+                }
+            }
+        }
+        iterator_stop(&it);
+        
+        // Now remove any duplicates from llocker
+        iterator_start(&it, remove_list);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+            list_remlink(ch->llocker, obj, FALSE);
+        }
+        iterator_stop(&it);
+        
+        list_destroy(remove_list);
     }
 
     list_destroy(seen);
-    list_destroy(lworn);
+    list_destroy(obj_seen);
 }
 
 void remove_duplicate_objects_from_list(OBJ_DATA **head, LLIST *seen) {

@@ -38,15 +38,21 @@ SPELL_FUNC(spell_soul_essence)
 	all = !str_cmp(arg,"all");
 	souls = atoi(arg);
 
-	for (obj = ch->carrying, i = 0; obj && (all || i < souls); obj = obj_next) {
-		obj_next = obj->next_content;
-
-		if (obj->pIndexData == obj_index_bottled_soul) {
-			found = true;
-			extract_obj(obj);
-			i++;
-		}
-	}
+    // Use the lcarrying LLIST instead of the old carrying linked list
+    if (ch->lcarrying) {
+        i = 0;
+        iterator_start(&it, ch->lcarrying);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it)) && (all || i < souls)) {
+            if (obj->pIndexData->vnum == get_reserved_vnum("obj_pneuma_item")) {
+                found = true;
+                // Need to remove from list before extracting to prevent invalid list access
+                list_remlink(ch->lcarrying, obj, false);
+                extract_obj(obj);
+                i++;
+            }
+        }
+        iterator_stop(&it);
+    }
 
 	if (found) {
 		rating = get_skill(ch,gsk_soul_essence); rating = UMAX(0,rating);

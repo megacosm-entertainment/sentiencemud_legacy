@@ -206,12 +206,17 @@ void do_whistle(CHAR_DATA *ch, char *argument)
 {
     OBJ_DATA *obj;
     CHAR_DATA *mount;
+    ITERATOR it;
 
-    for (obj = ch->carrying; obj != NULL; obj = obj->next_content)
+    if (ch->lcarrying) {
+        iterator_start(&it, ch->lcarrying);
+    while ((obj = (OBJ_DATA *)iterator_next(&it)) != NULL)
     {
-	if (obj->pIndexData == obj_index_gold_whistle)
-	    break;
+        if (obj->pIndexData == obj_index_gold_whistle)
+            break;
     }
+    iterator_stop(&it);
+}
 
     if (obj == NULL || IS_NPC(ch))
     {

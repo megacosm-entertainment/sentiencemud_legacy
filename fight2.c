@@ -137,11 +137,14 @@ void do_stake(CHAR_DATA *ch, char *argument)
 	return;
     }
 
-    for (stake = ch->carrying; stake != NULL; stake = stake->next_content)
-    {
-    	if (stake->item_type == ITEM_WEAPON && stake->value[0] == WEAPON_STAKE
-    		&& (!str_cmp(stake->material, "wood") || !str_cmp(stake->material, "silver")))
-	    break;
+    if (ch->lcarrying) {
+        iterator_start(&it, ch->lcarrying);
+        while ((stake = (OBJ_DATA *)iterator_nextdata(&it))) {
+            if (stake->item_type == ITEM_WEAPON && stake->value[0] == WEAPON_STAKE
+                && (!str_cmp(stake->material, "wood") || !str_cmp(stake->material, "silver")))
+                break;
+        }
+        iterator_stop(&it);
     }
 
     if (stake == NULL)
@@ -432,11 +435,12 @@ memset(&af,0,sizeof(af));
 	ch->mana = 0;
 
 	// take off equipment
-	for (obj = ch->carrying; obj != NULL; obj = obj_next)
-	{
-	    obj_next = obj->next_content;
-	    if (obj->wear_loc != WEAR_NONE)
-	        unequip_char(ch, obj, false);
+	if (ch->lworn) {
+    	iterator_start(&it, ch->lworn);
+    	while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+        	unequip_char(ch, obj, false);
+    	}
+    	iterator_stop(&it);
 	}
 
 	// remove affects

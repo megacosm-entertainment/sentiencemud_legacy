@@ -1982,6 +1982,7 @@ void do_train(CHAR_DATA *ch, char *argument)
     int mod_hit;
     int mod_mana;
     int mod_move;
+	ITERATOR it;
 
     if (IS_NPC(ch))
 		return;
@@ -2013,21 +2014,20 @@ void do_train(CHAR_DATA *ch, char *argument)
 	max_mana = ch->race->max_vitals[MAX_MANA];
 	max_move = ch->race->max_vitals[MAX_MOVE];
 
-	for (obj = ch->carrying; obj != NULL; obj = obj->next_content)
-	{
-		if (obj->wear_loc != WEAR_NONE)
-		{
-			for (af = obj->affected; af != NULL; af = af->next)
-			{
-				if (af->location == APPLY_HIT)
-					mod_hit += af->modifier;
-				if (af->location == APPLY_MANA)
-					mod_mana += af->modifier;
-				if (af->location == APPLY_MOVE)
-					mod_move += af->modifier;
-			}
-		}
-	}
+        if (ch->lworn) {
+            iterator_start(&it, ch->lworn);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+                for (af = obj->affected; af != NULL; af = af->next) {
+                    if (af->location == APPLY_HIT)
+                        mod_hit += af->modifier;
+                    if (af->location == APPLY_MANA)
+                        mod_mana += af->modifier;
+                    if (af->location == APPLY_MOVE)
+                        mod_move += af->modifier;
+                }
+            }
+            iterator_stop(&it);
+        }
 
 	max_hit += mod_hit;
 	max_mana += mod_mana;
@@ -5175,10 +5175,14 @@ void remort_player(CHAR_DATA *ch)
     gecho(buf);
 
     /* take off equipment*/
-    for (obj = ch->carrying; obj != NULL; obj = obj->next_content)
-    {
-		if (obj->wear_loc != WEAR_NONE)
-		    unequip_char(ch, obj, false);
+    if (ch->lworn) {
+        iterator_start(&it, ch->lworn);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+            iterator_stop(&it);
+            unequip_char(ch, obj, false);
+            iterator_start(&it, ch->lworn);
+        }
+        iterator_stop(&it);
     }
 
     /* take off remaining affects*/
@@ -5277,11 +5281,12 @@ void remort_player(CHAR_DATA *ch)
 
 	p_percent_trigger(ch, NULL, NULL, NULL, ch, NULL, NULL, NULL, NULL, TRIG_REMORT, NULL,0,0,0,0,0);
 
-    for (obj = ch->carrying; obj != NULL;)
-    {
-		OBJ_DATA *obj_next = obj->next_content;
-		p_percent_trigger(NULL, obj, NULL, NULL, ch, NULL, NULL, NULL, NULL, TRIG_REMORT, NULL,0,0,0,0,0);
-		obj = obj_next;
+    if (ch->lcarrying) {
+        iterator_start(&it, ch->lcarrying);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+            p_percent_trigger(NULL, obj, NULL, NULL, ch, NULL, NULL, NULL, NULL, TRIG_REMORT, NULL);
+        }
+        iterator_stop(&it);
     }
 #endif
 }
@@ -6111,20 +6116,19 @@ void do_setclass(CHAR_DATA *ch, char *argument)
 		(*ch->pcdata->current_class->clazz->enter)(ch);
 
 	OBJ_DATA *obj, *obj_next;
-	for (obj = ch->carrying; obj != NULL; obj = obj_next)
-	{
-		obj_next = obj->next_content;
-
-		// Unequip gear that's too high level for your new class
-		// TODO: Add other checks, such as class type
-		if (obj->wear_loc != WEAR_NONE &&
-			WEAR_AUTOEQUIP(obj->wear_loc) &&
-			(level->level < obj->level || !allowed_to_wear(ch, obj)))
+	if(ch->lworn) {
+		iterator_start(&it, ch->lworn);
+		while ((obj = (OBJ_DATA *)iterator_nextdata(&it)))
 		{
-			unequip_char(ch, obj, true);
+			if (obj->wear_loc != WEAR_NONE &&
+				WEAR_AUTOEQUIP(obj->wear_loc) &&
+				(level->level < obj->level || !allowed_to_wear(ch, obj)))
+			{
+				unequip_char(ch, obj, true);
+			}
 		}
+		iterator_stop(&it);
 	}
-
 	// TODO: Check gearsets
 	
 

@@ -286,13 +286,20 @@ void do_play(CHAR_DATA *ch, char *argument)
 	if (!IS_SET(entry->song->flags, SONG_VOICE_ONLY))
 	{
 		// Find equipped instrument
-		for (instrument = ch->carrying; instrument != NULL; instrument = instrument->next_content )
-		{
-			if ( IS_INSTRUMENT(instrument) && instrument->wear_loc != WEAR_NONE)
-			{
-				break;
-			}
-		}
+    // Check for a worn instrument using lworn
+    if (ch->lworn) {
+        iterator_start(&it, ch->lworn);
+        while ((instrument = (OBJ_DATA *)iterator_nextdata(&it))) {
+            if (instrument->item_type == ITEM_INSTRUMENT) {
+                instrument = instrument;
+                iterator_stop(&it);
+                break;
+            }
+        }
+        if (!instrument) {
+            iterator_stop(&it);
+        }
+    }
 
 		if (IS_SET(entry->song->flags, SONG_INSTRUMENT_ONLY) && instrument == NULL)
 		{

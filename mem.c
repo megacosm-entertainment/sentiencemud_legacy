@@ -830,18 +830,39 @@ void free_char( CHAR_DATA *ch )
 		free_skill_entry(se);
 	}
 
-    // Inventory
-    for (obj = ch->carrying; obj != NULL; obj = obj_next)
-    {
-	obj_next = obj->next_content;
-	extract_obj( obj );
+    // Free items in inventory using lcarrying
+    if (ch->lcarrying) {
+        iterator_start(&it, ch->lcarrying);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+            extract_obj(obj);
+        }
+        iterator_stop(&it);
     }
 
-    // Locker
-    for (obj = ch->locker; obj != NULL; obj = obj_next)
-    {
-	obj_next = obj->next_content;
-	extract_obj( obj );
+    // Free worn items using lworn
+    if (ch->lworn) {
+        iterator_start(&it, ch->lworn);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+            extract_obj(obj);
+        }
+        iterator_stop(&it);
+    }
+
+    // Free locker items using llocker
+    if (ch->llocker) {
+        iterator_start(&it, ch->llocker);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+            extract_obj(obj);
+        }
+        iterator_stop(&it);
+    }
+
+    if (ch->lquestitems) {
+        iterator_start(&it, ch->lquestitems);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+            extract_obj(obj);
+        }
+        iterator_stop(&it);
     }
 
     // affects

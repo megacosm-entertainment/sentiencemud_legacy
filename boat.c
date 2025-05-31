@@ -5443,10 +5443,13 @@ void do_ship_waypoints(CHAR_DATA *ch, char *argument)
 		if( IS_NULLSTR(argument) )
 		{
 			map = NULL;
-			for (map = ch->carrying; map != NULL; map = map->next_content) {
-				if (IS_SCROLL(map))
-					break;
-			}
+            ITERATOR it;
+            iterator_start(&it, ch->lcarrying);
+            while ((map = (OBJ_DATA *)iterator_nextdata(&it))) {
+                if (IS_SCROLL(map))
+                    break;
+            }
+            iterator_stop(&it);
 
 			if (map == NULL || !IS_SCROLL(map) || list_size(SCROLL(map)->spells) > 0)
 			{

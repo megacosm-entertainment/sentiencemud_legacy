@@ -130,60 +130,66 @@ bool are_spell_targets_compatible(SKILL_ENTRY *sa, SKILL_ENTRY *sb)
 bool has_inks(CHAR_DATA *ch, int *need, bool show)
 {
     int have[CATALYST_MAX];
-	OBJ_DATA *obj;
+    OBJ_DATA *obj;
 
-	if (!ch || !need)
-		return false;
+    if (!ch || !need)
+        return false;
 
-	memset(have,0,sizeof(have));
-	for (obj = ch->carrying; obj != NULL; obj = obj->next_content) {
-		if (IS_INK(obj))
-		{
-			for(int i = 0; i < MAX_INK_TYPES; i++)
-			{
-				if (INK(obj)->types[i] > CATALYST_NONE && INK(obj)->types[i] < CATALYST_MAX && INK(obj)->amounts[i] > 0)
-					have[INK(obj)->types[i]] += INK(obj)->amounts[i];
-			}
-		}
-	}
+    memset(have,0,sizeof(have));
 
-	bool ret = true;
-	for(int i = CATALYST_NONE; i < CATALYST_MAX; i++)
-	{
-		if (have[i] < need[i])
-		{
-			if (show)
-			{
-				char buf[MSL];
-				sprintf(buf, "You are missing an ink with %s essence.\n\r", catalyst_descs[i]);
-				send_to_char(buf, ch);
-			}
-			ret = false;
-		}
-	}
+    ITERATOR it;
+    iterator_start(&it, ch->lcarrying);
+    while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+        if (IS_INK(obj))
+        {
+            for(int i = 0; i < MAX_INK_TYPES; i++)
+            {
+                if (INK(obj)->types[i] > CATALYST_NONE && INK(obj)->types[i] < CATALYST_MAX && INK(obj)->amounts[i] > 0)
+                    have[INK(obj)->types[i]] += INK(obj)->amounts[i];
+            }
+        }
+    }
+    iterator_stop(&it);
 
-	return ret;
+    bool ret = true;
+    for(int i = CATALYST_NONE; i < CATALYST_MAX; i++)
+    {
+        if (have[i] < need[i])
+        {
+            if (show)
+            {
+                char buf[MSL];
+                sprintf(buf, "You are missing an ink with %s essence.\n\r", catalyst_descs[i]);
+                send_to_char(buf, ch);
+            }
+            ret = false;
+        }
+    }
+
+    return ret;
 }
 
 void extract_inks(CHAR_DATA *ch, int *need)
 {
-	OBJ_DATA *obj,*next;
-	for (obj = ch->carrying; obj != NULL; obj = next) {
-		next = obj->next_content;
-		bool found = false;
-		if (IS_INK(obj))
-		{
-			for(int i = 0; i < MAX_INK_TYPES; i++)
-			{
-				if (INK(obj)->types[i] > CATALYST_NONE && INK(obj)->types[i] < CATALYST_MAX && INK(obj)->amounts[i] > 0 && need[INK(obj)->types[i]] > 0)
-				{
-					need[INK(obj)->types[i]] -= INK(obj)->amounts[i];
-					found = true;
-				}
-			}
-		}
-		if (found) extract_obj(obj);
-	}
+    OBJ_DATA *obj, *next;
+    ITERATOR it;
+    iterator_start(&it, ch->lcarrying);
+    while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+        bool found = false;
+        if (IS_INK(obj))
+        {
+            for(int i = 0; i < MAX_INK_TYPES; i++)
+            {
+                if (INK(obj)->types[i] > CATALYST_NONE && INK(obj)->types[i] < CATALYST_MAX && INK(obj)->amounts[i] > 0 && need[INK(obj)->types[i]] > 0)
+                {
+                    need[INK(obj)->types[i]] -= INK(obj)->amounts[i];
+                    found = true;
+                }
+            }
+        }
+        if (found) extract_obj(obj);
+    }
+    iterator_stop(&it);
 }
 
 bool obj_has_money(CHAR_DATA *ch, OBJ_DATA *container)
@@ -2014,7 +2020,7 @@ void do_drop(CHAR_DATA *ch, char *argument)
                 if (arg[3] == '\0' || is_name(&arg[4], obj->name))
                     any = obj;
                 if (any == obj && can_drop_obj(ch, obj, true) && !IS_SET(obj->extra[1], ITEM_KEPT) &&
-                    !p_percent_trigger(NULL, obj, NULL, NULL, ch, NULL, NULL, NULL, NULL, TRIG_PREDROP, "silent"))
+                    !p_percent_trigger(NULL, obj, NULL, NULL, ch, NULL, NULL, NULL, NULL, TRIG_PREDROP, "silent", NULL,0,0,0,0))
                 {
                     snprintf(short_descr, sizeof(short_descr), "%s", obj->short_descr);
                     found = true;
@@ -2032,7 +2038,7 @@ void do_drop(CHAR_DATA *ch, char *argument)
                         ||  !can_drop_obj(ch, obj, true) || IS_SET(obj->extra[1], ITEM_KEPT))
                         continue;
 
-                    if(p_percent_trigger(NULL, obj, NULL, NULL, ch, NULL, NULL, NULL, NULL, TRIG_PREDROP, NULL))
+                    if(p_percent_trigger(NULL, obj, NULL, NULL, ch, NULL, NULL, NULL, NULL, TRIG_PREDROP, NULL, 0,0,0,0,0))
                         continue;
 
                     if (match_obj == NULL && obj != NULL)
@@ -2048,8 +2054,8 @@ void do_drop(CHAR_DATA *ch, char *argument)
                         wiznet(buf, NULL, NULL, WIZ_IMMLOG, 0, 0);
                     }
 
-                    p_percent_trigger(NULL, obj, NULL, NULL, ch, NULL, NULL, obj, NULL, TRIG_DROP, NULL);
-                    p_give_trigger(NULL, NULL, ch->in_room, ch, obj, TRIG_DROP);
+                    p_percent_trigger(NULL, obj, NULL, NULL, ch, NULL, NULL, obj, NULL, TRIG_DROP, NULL, 0,0,0,0,0);
+                    p_give_trigger(NULL, NULL, ch->in_room, ch, obj, TRIG_DROP, 0,0,0,0,0);
 
                     if (IS_SET(obj->extra[0], ITEM_MELT_DROP))
                         extract_obj(obj);
@@ -2259,106 +2265,107 @@ void do_give(CHAR_DATA *ch, char *argument)
 	    i = 0;
 	    match_obj = NULL;
 
-	    for (obj = ch->carrying; obj != NULL; obj = obj_next)
-	    {
-		obj_next = obj->next_content;
+            ITERATOR it;
+            iterator_start(&it, ch->lcarrying);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it)))
+            {
+                if (is_name(arg1, obj->name))
+                    any = obj;
 
-		if (is_name(arg1, obj->name))
-		    any = obj;
-
-		if (any == obj && can_give_obj(ch, obj, victim, true))
-		{
-		    sprintf(short_descr, obj->short_descr);
-		    found = true;
-		    break;
-		}
-	    }
+                if (any == obj && can_give_obj(ch, obj, victim, true))
+                {
+                    snprintf(short_descr, sizeof(short_descr), "%s", obj->short_descr);
+                    found = true;
+                    break;
+                }
+            }
+            iterator_stop(&it);
 
 	    if (found)
 	    {
-		for (obj = ch->carrying; obj != NULL; obj = obj_next)
-		{
-		    obj_next = obj->next_content;
+                iterator_start(&it, ch->lcarrying);
+                while ((obj = (OBJ_DATA *)iterator_nextdata(&it)))
+                {
+                    if (str_cmp(obj->short_descr, short_descr)
+                    ||  !can_give_obj(ch, obj, victim, true))
+                        continue;
 
-		    if (str_cmp(obj->short_descr, short_descr)
-		    ||  !can_give_obj(ch, obj, victim, true))
-			continue;
+                    if (victim->carry_number + get_obj_number(obj) >
+                            can_carry_n(victim))
+                    {
+                        if (i > 0 && match_obj != NULL)
+                        {
+                            sprintf(buf, "{Y({G%2d{Y) {x$n gives $p to $N.", i);
+                            act(buf, ch, victim, NULL, match_obj, NULL, NULL, NULL, TO_NOTVICT, NULL, NULL);
 
-		    if (victim->carry_number + get_obj_number(obj) >
-			    can_carry_n(victim))
-		    {
-			if (i > 0 && match_obj != NULL)
-			{
-			    sprintf(buf, "{Y({G%2d{Y) {x$n gives $p to $N.", i);
-			    act(buf, ch, victim, NULL, match_obj, NULL, NULL, NULL, TO_NOTVICT, NULL, NULL);
+                            sprintf(buf, "{Y({G%2d{Y) {x$n gives you $p.", i);
+                            act(buf, ch, victim, NULL, match_obj, NULL, NULL, NULL, TO_VICT, NULL, NULL);
 
-			    sprintf(buf, "{Y({G%2d{Y) {x$n gives you $p.", i);
-			    act(buf, ch, victim, NULL, match_obj, NULL, NULL, NULL, TO_VICT, NULL, NULL);
+                            sprintf(buf, "{Y({G%2d{Y) {xYou give $p to $N.", i);
+                            act(buf, ch, victim, NULL, match_obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+                        }
 
-			    sprintf(buf, "{Y({G%2d{Y) {xYou give $p to $N.", i);
-			    act(buf, ch, victim, NULL, match_obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
-			}
+                        act("$N has $S hands full.", ch, victim, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+                        found = false;
+                    }
 
-			act("$N has $S hands full.", ch, victim, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
-			found = false;
-		    }
+                    if (get_carry_weight(victim) + get_obj_weight(obj)
+                            > can_carry_w(victim))
+                    {
+                        if (i > 0 && match_obj != NULL)
+                        {
+                            sprintf(buf, "{Y({G%2d{Y) {x$n gives $p to $N.", i);
+                            act(buf, ch, victim, NULL, match_obj, NULL, NULL, NULL, TO_NOTVICT, NULL, NULL);
 
-		    if (get_carry_weight(victim) + get_obj_weight(obj)
-			    > can_carry_w(victim))
-		    {
-			if (i > 0 && match_obj != NULL)
-			{
-			    sprintf(buf, "{Y({G%2d{Y) {x$n gives $p to $N.", i);
-			    act(buf, ch, victim, NULL, match_obj, NULL, NULL, NULL, TO_NOTVICT, NULL, NULL);
+                            sprintf(buf, "{Y({G%2d{Y) {x$n gives you $p.", i);
+                            act(buf, ch, victim, NULL, match_obj, NULL, NULL, NULL, TO_VICT, NULL, NULL);
 
-			    sprintf(buf, "{Y({G%2d{Y) {x$n gives you $p.", i);
-			    act(buf, ch, victim, NULL, match_obj, NULL, NULL, NULL, TO_VICT, NULL, NULL);
+                            sprintf(buf, "{Y({G%2d{Y) {xYou give $p to $N.", i);
+                            act(buf, ch, victim, NULL, match_obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+                        }
 
-			    sprintf(buf, "{Y({G%2d{Y) {xYou give $p to $N.", i);
-			    act(buf, ch, victim, NULL, match_obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
-			}
+                        act("$N can't carry any more weight.", ch, victim, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+                        found = false;
+                    }
 
-			act("$N can't carry any more weight.", ch, victim, NULL, NULL, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
-			found = false;
-		    }
+                    if (match_obj == NULL && obj != NULL)
+                        match_obj = obj;
 
-		    if (match_obj == NULL && obj != NULL)
-			match_obj = obj;
+                    reset_obj(obj);
+                    obj_from_char(obj);
+                    obj_to_char(obj, victim);
+                    i++;
 
-		    reset_obj(obj);
-		    obj_from_char(obj);
-		    obj_to_char(obj, victim);
-		    i++;
+                    p_give_trigger(NULL, obj, NULL, ch, obj, TRIG_GIVE,0,0,0,0,0);
+                    p_give_trigger(NULL, NULL, ch->in_room, ch, obj, TRIG_GIVE,0,0,0,0,0);
+                    p_give_trigger(victim, NULL, NULL, ch, obj, TRIG_GIVE,0,0,0,0,0);
 
-			p_give_trigger(NULL, obj, NULL, ch, obj, TRIG_GIVE,0,0,0,0,0);
-			p_give_trigger(NULL, NULL, ch->in_room, ch, obj, TRIG_GIVE,0,0,0,0,0);
-			p_give_trigger(victim, NULL, NULL, ch, obj, TRIG_GIVE,0,0,0,0,0);
+                    if (!found)
+                        return;
+                }
+                iterator_stop(&it);
 
-	            if (!found)
-			return;
-		}
+                if (i > 0 && match_obj != NULL)
+                {
+                    sprintf(buf, "{Y({G%2d{Y) {x$n gives $p to $N.", i);
+                    act(buf, ch, victim, NULL, match_obj, NULL, NULL, NULL, TO_NOTVICT, NULL, NULL);
 
-		if (i > 0 && match_obj != NULL)
-		{
-		    sprintf(buf, "{Y({G%2d{Y) {x$n gives $p to $N.", i);
-		    act(buf, ch, victim, NULL, match_obj, NULL, NULL, NULL, TO_NOTVICT, NULL, NULL);
+                    sprintf(buf, "{Y({G%2d{Y) {x$n gives you $p.", i);
+                    act(buf, ch, victim, NULL, match_obj, NULL, NULL, NULL, TO_VICT, NULL, NULL);
 
-		    sprintf(buf, "{Y({G%2d{Y) {x$n gives you $p.", i);
-		    act(buf, ch, victim, NULL, match_obj, NULL, NULL, NULL, TO_VICT, NULL, NULL);
+                    sprintf(buf, "{Y({G%2d{Y) {xYou give $p to $N.", i);
+                    act(buf, ch, victim, NULL, match_obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
 
-		    sprintf(buf, "{Y({G%2d{Y) {xYou give $p to $N.", i);
-		    act(buf, ch, victim, NULL, match_obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+                    //p_give_trigger(NULL, match_obj, NULL, ch, match_obj, TRIG_GIVE,0,0,0,0,0);
+                    //p_give_trigger(NULL, NULL, ch->in_room, ch, match_obj, TRIG_GIVE,0,0,0,0,0);
+                    //p_give_trigger(victim, NULL, NULL, ch, match_obj, TRIG_GIVE,0,0,0,0,0);
+                }
+            }
+            else if (!any)
+                act("You aren't carrying any $t which you can give $M.", ch, victim, NULL, NULL, NULL, arg1, NULL, TO_CHAR, NULL, NULL);
+        }
 
-			//p_give_trigger(NULL, match_obj, NULL, ch, match_obj, TRIG_GIVE,0,0,0,0,0);
-			//p_give_trigger(NULL, NULL, ch->in_room, ch, match_obj, TRIG_GIVE,0,0,0,0,0);
-			//p_give_trigger(victim, NULL, NULL, ch, match_obj, TRIG_GIVE,0,0,0,0,0);
-		}
-	    }
-	    else if (!any)
-		act("You aren't carrying any $t which you can give $M.", ch, victim, NULL, NULL, NULL, arg1, NULL, TO_CHAR, NULL, NULL);
-	}
-
-	return;
+        return;
     }
 
     /* Give <item> <person> */
@@ -2881,7 +2888,7 @@ void do_envenom(CHAR_DATA *ch, char *argument)
 	return;
     }
 
-    obj =  get_obj_list(ch,argument,ch->carrying);
+    obj =  get_obj_list(ch,argument,ch->lcarrying);
 
     if (obj== NULL)
     {
@@ -4410,47 +4417,46 @@ void do_wear(CHAR_DATA *ch, char *argument)
 		send_to_char("You throw on your equipment.\n\r", ch);
 		act("$n throws on $s equipment.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
-		/* First run through all equipment looking for last_wear_loc set. */
-		for (obj = ch->carrying; obj != NULL; obj = obj_next)
-		{
-			obj_next = obj->next_content;
-			if (obj->last_wear_loc != WEAR_NONE &&
-				WEAR_AUTOEQUIP(obj->last_wear_loc) &&
-				can_see_obj(ch, obj) &&
-				obj->wear_loc == WEAR_NONE &&
-				allowed_to_wear(ch, obj) &&
-				level >= obj->level) {
-			if (both_hands_full(ch)
-			&& (CAN_WEAR(obj, ITEM_WEAR_SHIELD)
-				 || CAN_WEAR(obj, ITEM_HOLD)
-				 || CAN_WEAR(obj, ITEM_WIELD)))
-				continue;
+        // First run through all equipment looking for last_wear_loc set.
+        ITERATOR it;
+        iterator_start(&it, ch->lcarrying);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+            if (obj->last_wear_loc != WEAR_NONE &&
+                WEAR_AUTOEQUIP(obj->last_wear_loc) &&
+                can_see_obj(ch, obj) &&
+                obj->wear_loc == WEAR_NONE &&
+                allowed_to_wear(ch, obj) &&
+                level >= obj->level) {
+                if (both_hands_full(ch)
+                && (CAN_WEAR(obj, ITEM_WEAR_SHIELD)
+                     || CAN_WEAR(obj, ITEM_HOLD)
+                     || CAN_WEAR(obj, ITEM_WIELD)))
+                    continue;
 
-			if(p_percent_trigger(NULL, obj, NULL, NULL, ch, NULL, NULL, NULL, NULL, TRIG_PREWEAR, NULL,0,0,0,0,0))
-				continue;
+                if(p_percent_trigger(NULL, obj, NULL, NULL, ch, NULL, NULL, NULL, NULL, TRIG_PREWEAR, NULL,0,0,0,0,0))
+                    continue;
 
-			equip_char(ch, obj, obj->last_wear_loc);
-//			found = true;
-			}
-		}
+                equip_char(ch, obj, obj->last_wear_loc);
+            }
+        }
+        iterator_stop(&it);
 
-		for (obj = ch->carrying; obj != NULL; obj = obj_next)
-		{
-			obj_next = obj->next_content;
-			if (obj->wear_loc == WEAR_NONE
-			&& can_see_obj(ch, obj)
-			&& allowed_to_wear(ch, obj)
-			&& is_wearable(obj))
-			{
+        // Second pass: wear everything else that's wearable
+        iterator_start(&it, ch->lcarrying);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+            if (obj->wear_loc == WEAR_NONE
+            && can_see_obj(ch, obj)
+            && allowed_to_wear(ch, obj)
+            && is_wearable(obj))
+            {
+                if(p_percent_trigger(NULL, obj, NULL, NULL, ch, NULL, NULL, NULL, NULL, TRIG_PREWEAR, NULL,0,0,0,0,0))
+                    continue;
 
-			if(p_percent_trigger(NULL, obj, NULL, NULL, ch, NULL, NULL, NULL, NULL, TRIG_PREWEAR, NULL,0,0,0,0,0))
-				continue;
-
-			wear_obj(ch, obj, false);
-//			found = true;
-			}
-		}
-		return;
+                wear_obj(ch, obj, false);
+            }
+        }
+        iterator_stop(&it);
+        return;
     }
     else
     {
@@ -4474,13 +4480,15 @@ void removeall(CHAR_DATA *ch)
 
     save_last_wear(ch);
 
-    for (obj = ch->carrying; obj != NULL; obj = obj->next_content)
-    {
+    ITERATOR it;
+    iterator_start(&it, ch->lworn);
+    while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
         if (obj->wear_loc != WEAR_NONE)
         {
             remove_obj(ch, obj->wear_loc, true);
-	}
+        }
     }
+    iterator_stop(&it);
 }
 
 
@@ -4516,22 +4524,24 @@ void do_remove(CHAR_DATA *ch, char *argument)
 	send_to_char("You remove your equipment.\n\r", ch);
 	act("$n removes $s equipment.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 
-	for (obj = ch->carrying; obj != NULL; obj = obj->next_content)
-	{
-  	    if (obj->wear_loc != WEAR_NONE
-  	    &&   obj->item_type != ITEM_TATTOO
-	    &&   can_see_obj(ch, obj)
-	    &&   (WEAR_ALWAYSREMOVE(obj->wear_loc) || !IS_SET(obj->extra[0], ITEM_NOREMOVE))
-	    &&   wear_params[obj->wear_loc][2])
-	    {
+        // Use iterator over ch->lworn for actively worn gear
+        ITERATOR it;
+        OBJ_DATA *obj;
+        iterator_start(&it, ch->lworn);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+            if (obj->wear_loc != WEAR_NONE
+                && obj->item_type != ITEM_TATTOO
+                && can_see_obj(ch, obj)
+                && (WEAR_ALWAYSREMOVE(obj->wear_loc) || !IS_SET(obj->extra[0], ITEM_NOREMOVE))
+                && wear_params[obj->wear_loc][2])
+            {
+                if (p_percent_trigger(NULL, obj, NULL, NULL, ch, NULL, NULL, NULL, NULL, TRIG_PREREMOVE, NULL,0,0,0,0,0))
+                    continue;
 
-		if(p_percent_trigger(NULL, obj, NULL, NULL, ch, NULL, NULL, NULL, NULL, TRIG_PREREMOVE, NULL,0,0,0,0,0))
-			continue;
-
-		unequip_char(ch, obj, false);
-//		found = true;
-	    }
-	}
+                unequip_char(ch, obj, false);
+            }
+        }
+        iterator_stop(&it);
     }
     else
     {
@@ -5923,36 +5933,29 @@ void obj_to_keeper(OBJ_DATA *obj, CHAR_DATA *ch)
 {
     OBJ_DATA *t_obj, *t_obj_next;
 
-    /* see if any duplicates are found */
-    for (t_obj = ch->carrying; t_obj != NULL; t_obj = t_obj_next)
-    {
-	t_obj_next = t_obj->next_content;
-
-	if (obj->pIndexData == t_obj->pIndexData
-	&&  !str_cmp(obj->short_descr,t_obj->short_descr))
-	{
-	    obj->cost = t_obj->cost; /* keep it standard */
-	    break;
-	}
+    // Use ch->lcarrying for shopkeeper inventory
+    ITERATOR it;
+    bool found = false;
+    iterator_start(&it, ch->lcarrying);
+    while ((t_obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+        if (obj->pIndexData == t_obj->pIndexData
+            && !str_cmp(obj->short_descr, t_obj->short_descr))
+        {
+            obj->cost = t_obj->cost; // keep it standard
+            found = true;
+            break;
+        }
     }
+    iterator_stop(&it);
 
-    if (t_obj == NULL)
+    // Insert the object into the lcarrying list
+    list_appendlink(ch->lcarrying, obj);
+
+    if (!IS_SET(obj->extra[1], ITEM_SELL_ONCE))
     {
-	obj->next_content = ch->carrying;
-	ch->carrying = obj;
+        // If the item can be sold again, mark it as inventory
+        SET_BIT(obj->extra[0], ITEM_INVENTORY);
     }
-    else
-    {
-	obj->next_content = t_obj->next_content;
-	t_obj->next_content = obj;
-    }
-
-
-	if(!IS_SET(obj->extra[1], ITEM_SELL_ONCE))
-	{
-		// If the item can be sold again, mark it as inventory
-		SET_BIT(obj->extra[0], ITEM_INVENTORY);
-	}
     obj->carried_by      = ch;
     obj->in_room         = NULL;
     obj->in_obj          = NULL;
@@ -7849,7 +7852,7 @@ void do_push(CHAR_DATA *ch, char *argument)
 
     if ((obj = get_obj_list(ch, arg, ch->in_room->contents)) == NULL)
     {
-        if ((obj = get_obj_list(ch, arg, ch->carrying)) == NULL)
+        if ((obj = get_obj_list(ch, arg, ch->lcarrying)) == NULL)
 		{
 			send_to_char ("You can't find it.\n\r",ch);
 			return;
@@ -7975,7 +7978,7 @@ void do_pull(CHAR_DATA *ch, char *argument)
 
 	if((mob = get_char_room(ch, NULL, arg)) == NULL) {
 		if ((obj = get_obj_list(ch, arg, ch->in_room->contents)) == NULL) {
-			if ((obj = get_obj_list(ch, arg, ch->carrying)) == NULL) {
+			if ((obj = get_obj_list(ch, arg, ch->lcarrying)) == NULL) {
 				send_to_char ("You can't find it.\n\r",ch);
 				return;
 			}
@@ -8326,7 +8329,7 @@ void do_turn(CHAR_DATA *ch, char *argument)
 
 	if ((obj = get_obj_list(ch, arg, ch->in_room->contents)) == NULL)
 	{
-	if ((obj = get_obj_list(ch, arg, ch->carrying)) == NULL)
+	if ((obj = get_obj_list(ch, arg, ch->lcarrying)) == NULL)
 	{
 	send_to_char ("You can't find it.\n\r",ch);
 	return;
@@ -9949,7 +9952,7 @@ void do_infuse(CHAR_DATA *ch, char *argument)
 		return;
     }
 
-    obj =  get_obj_list(ch,arg1,ch->carrying);
+    obj =  get_obj_list(ch,arg1,ch->lcarrying);
 
     if (obj== NULL)
     {

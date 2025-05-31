@@ -7278,6 +7278,8 @@ void persist_save_mobile(FILE *fp, CHAR_DATA *ch)
 {
 	AFFECT_DATA *paf;
 	int i = 0;
+	ITERATOR it;
+	OBJ_DATA *obj;
 
 	fprintf(fp, "#MOBILE %s\n", widevnum_string_mobile(ch->pIndexData, NULL));
 	fprintf(fp, "Version %d\n", VERSION_MOBILE);
@@ -7424,9 +7426,23 @@ void persist_save_mobile(FILE *fp, CHAR_DATA *ch)
 	if( ch->tokens )
 		persist_save_token(fp, ch->tokens);
 
-	// Contents
-	if (ch->carrying)
-		persist_save_object(fp, ch->carrying, true);
+    // Contents - iterate through lcarrying
+    if (ch->lcarrying) {
+        iterator_start(&it, ch->lcarrying);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+            persist_save_object(fp, obj, false);
+        }
+        iterator_stop(&it);
+    }
+    
+    // Also save worn items
+    if (ch->lworn) {
+        iterator_start(&it, ch->lworn);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+            persist_save_object(fp, obj, false);
+        }
+        iterator_stop(&it);
+    }
 
 	fprintf(fp, "#-MOBILE\n\n");
 }

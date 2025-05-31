@@ -3113,9 +3113,32 @@ void variable_dynamic_fix_mobile (CHAR_DATA *ch)
 
 		cur = cur->global_next;
 	}
+	ITERATOR it;    // Use lcarrying instead of carrying
+    if (ch->lcarrying && IS_VALID(ch->lcarrying)) {
+        iterator_start(&it, ch->lcarrying);
+        while ((o = iterator_nextdata(&it))) {
+            variable_dynamic_fix_object(o);
+        }
+        iterator_stop(&it);
+    }
 
-	for(o = ch->carrying; o; o = o->next_content)
-		variable_dynamic_fix_object(o);
+    // Use llocker instead of locker
+    if (ch->llocker && IS_VALID(ch->llocker)) {
+        iterator_start(&it, ch->llocker);
+        while ((o = iterator_nextdata(&it))) {
+            variable_dynamic_fix_object(o);
+        }
+        iterator_stop(&it);
+    }
+
+    // Handle worn items (this is new)
+    if (ch->lworn && IS_VALID(ch->lworn)) {
+        iterator_start(&it, ch->lworn);
+        while ((o = iterator_nextdata(&it))) {
+            variable_dynamic_fix_object(o);
+        }
+        iterator_stop(&it);
+    }
 
 	for(o = ch->locker; o; o = o->next_content)
 		variable_dynamic_fix_object(o);

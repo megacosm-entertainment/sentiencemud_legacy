@@ -198,7 +198,9 @@ void do_shoot( CHAR_DATA *ch, char *argument )
 			{
 				quiver = NULL;
 
-				for ( obj = ch->carrying; obj != NULL; obj = obj->next_content )
+				ITERATOR it;
+				iterator_start(&it, ch->lcarrying);
+				while ((obj = (OBJ_DATA *)iterator_nextdata(&it)))
 				{
 					if ( can_see_obj(ch, obj) &&
 						IS_AMMO(obj) && AMMO(obj)->type == ammo_type &&
@@ -210,6 +212,7 @@ void do_shoot( CHAR_DATA *ch, char *argument )
 						break;
 					}
 				}
+				iterator_stop(&it);
 			}
 		}
 

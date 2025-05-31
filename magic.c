@@ -411,19 +411,25 @@ bool validate_spell_target(CHAR_DATA *ch,int type,char *arg,int *t,CHAR_DATA **v
 		target = TARGET_CHAR;
 		break;
 
-	case TAR_OBJ_INV:
-		if (!arg[0]) {
-			send_to_char("Cast it on what?\n\r", ch);
-			return false;
-		}
+    case TAR_OBJ_INV:
+        if (!arg[0]) {
+            send_to_char("Cast it on what?\n\r", ch);
+            return false;
+        }
 
-		if (!(obj = get_obj_list(ch, arg, ch->carrying))) {
-			send_to_char("You're not carrying that item.\n\r", ch);
-			return false;
-		}
+        // Check inventory first, then worn items
+        obj = get_obj_list(ch, arg, ch->lcarrying);
+        if (!obj) {
+            obj = get_obj_list(ch, arg, ch->lworn);
+        }
+        
+        if (!obj) {
+            send_to_char("You're not carrying that item.\n\r", ch);
+            return false;
+        }
 
-		target = TARGET_OBJ;
-		break;
+        target = TARGET_OBJ;
+        break;
 
 	case TAR_OBJ_GROUND:
 		if (!arg[0]) {
@@ -440,57 +446,71 @@ bool validate_spell_target(CHAR_DATA *ch,int type,char *arg,int *t,CHAR_DATA **v
 		target = TARGET_OBJ;
 		break;
 
-	case TAR_OBJ_CHAR_OFF:
-		if (!arg[0] && !ch->fighting) {
-			send_to_char("Cast it on whom or what?\n\r", ch);
-			return false;
-		}
+    case TAR_OBJ_CHAR_OFF:
+        if (!arg[0] && !ch->fighting) {
+            send_to_char("Cast it on whom or what?\n\r", ch);
+            return false;
+        }
 
-		if (ch->fighting && !arg[0])
-			victim = ch->fighting;
-		else
-			victim = get_char_room(ch, NULL, arg);
+        if (ch->fighting && !arg[0])
+            victim = ch->fighting;
+        else
+            victim = get_char_room(ch, NULL, arg);
 
-		obj = get_obj_list(ch, arg, ch->carrying);
-		if (victim) target = TARGET_CHAR;
-		else if (obj) target = TARGET_OBJ;
-		else {
-			send_to_char("You don't see that here.\n\r", ch);
-			return false;
-		}
+        // Check inventory first, then worn items if no victim found
+        if (!victim) {
+            obj = get_obj_list(ch, arg, ch->lcarrying);
+            if (!obj) {
+                obj = get_obj_list(ch, arg, ch->lworn);
+            }
+        }
 
-		if (target == TARGET_CHAR && (is_safe(ch, victim, true) ||
-			(victim->fighting && ch != victim && !is_same_group(ch, victim->fighting) &&
-			!IS_SET(ch->in_room->room_flag[1], ROOM_MULTIPLAY)))) {
-			send_to_char("Not on that target.\n\r", ch);
-			return false;
-		}
-		break;
+        if (victim) target = TARGET_CHAR;
+        else if (obj) target = TARGET_OBJ;
+        else {
+            send_to_char("You don't see that here.\n\r", ch);
+            return false;
+        }
 
-	case TAR_OBJ_CHAR_DEF:
-		if (!arg[0])
-			victim = ch;
-		else {
-			victim = get_char_room(ch, NULL, arg);
-			obj = get_obj_list(ch, arg, ch->carrying);
-		}
+        if (target == TARGET_CHAR && (is_safe(ch, victim, true) ||
+            (victim->fighting && ch != victim && !is_same_group(ch, victim->fighting) &&
+            !IS_SET(ch->in_room->room_flag[1], ROOM_MULTIPLAY)))) {
+            send_to_char("Not on that target.\n\r", ch);
+            return false;
+        }
+        break;
 
-		if (victim) {
-			if (victim != ch && victim->fighting && victim->fighting != ch &&
-				!is_same_group(ch, victim->fighting) && !IS_NPC(victim) &&
-				!IS_NPC(victim->fighting) && !is_pk(ch) && !IS_SET(ch->in_room->room_flag[0], ROOM_ARENA)) {
-				send_to_char("You can't interfere in a PK battle if you are not PK.\n\r", ch);
-				return false;
-			}
+    case TAR_OBJ_CHAR_DEF:
+        if (!arg[0])
+            victim = ch;
+        else {
+            victim = get_char_room(ch, NULL, arg);
+            
+            // Check inventory first, then worn items if no victim found
+            if (!victim) {
+                obj = get_obj_list(ch, arg, ch->lcarrying);
+                if (!obj) {
+                    obj = get_obj_list(ch, arg, ch->lworn);
+                }
+            }
+        }
 
-			target = TARGET_CHAR;
-		} else if (obj)
-			target = TARGET_OBJ;
-		else {
-			send_to_char("They aren't here.\n\r", ch);
-			return false;
-		}
-		break;
+        if (victim) {
+            if (victim != ch && victim->fighting && victim->fighting != ch &&
+                !is_same_group(ch, victim->fighting) && !IS_NPC(victim) &&
+                !IS_NPC(victim->fighting) && !is_pk(ch) && !IS_SET(ch->in_room->room_flag[0], ROOM_ARENA)) {
+                send_to_char("You can't interfere in a PK battle if you are not PK.\n\r", ch);
+                return false;
+            }
+
+            target = TARGET_CHAR;
+        } else if (obj)
+            target = TARGET_OBJ;
+        else {
+            send_to_char("They aren't here.\n\r", ch);
+            return false;
+        }
+        break;
 
 	case TAR_IGNORE_CHAR_DEF:
 		if (!arg[0]) {
@@ -863,16 +883,21 @@ void cast_end(CHAR_DATA *ch)
 		target = TARGET_CHAR;
 		break;
 
-	case TAR_OBJ_INV:
-		obj = get_obj_list(ch, ch->cast_target_name, ch->carrying);
-		if (!obj) {
-			send_to_char("Your target seems to have vanished.\n\r", ch);
-			obj = NULL;
-		}
+    case TAR_OBJ_INV:
+        // Check inventory first, then worn items
+        obj = get_obj_list(ch, ch->cast_target_name, ch->lcarrying);
+        if (!obj) {
+            obj = get_obj_list(ch, ch->cast_target_name, ch->lworn);
+        }
+        
+        if (!obj) {
+            send_to_char("Your target seems to have vanished.\n\r", ch);
+            obj = NULL;
+        }
 
-		vo = (void *) obj;
-		target = TARGET_OBJ;
-		break;
+        vo = (void *) obj;
+        target = TARGET_OBJ;
+        break;
 
 	case TAR_OBJ_GROUND:
 		obj = get_obj_list(ch, ch->cast_target_name, ch->in_room->contents);
@@ -885,25 +910,38 @@ void cast_end(CHAR_DATA *ch)
 		target = TARGET_OBJ;
 		break;
 
-	case TAR_OBJ_CHAR_OFF:
-		if ((victim = get_char_room(ch, NULL, ch->cast_target_name))) {
-			target = TARGET_CHAR;
-			vo = (void *) victim;
-		} else if ((obj = get_obj_list(ch, ch->cast_target_name, ch->carrying))) {
-			target = TARGET_OBJ;
-			vo = (void *) obj;
-		} else {
-			send_to_char("Your target is no longer here.\n\r", ch);
-			target = TARGET_CHAR;
-			victim = NULL;
-		}
-		break;
+    case TAR_OBJ_CHAR_OFF:
+        if ((victim = get_char_room(ch, NULL, ch->cast_target_name))) {
+            target = TARGET_CHAR;
+            vo = (void *) victim;
+        } else {
+            // Check inventory first, then worn items
+            obj = get_obj_list(ch, ch->cast_target_name, ch->lcarrying);
+            if (!obj) {
+                obj = get_obj_list(ch, ch->cast_target_name, ch->lworn);
+            }
+            
+            if (obj) {
+                target = TARGET_OBJ;
+                vo = (void *) obj;
+            } else {
+                send_to_char("Your target is no longer here.\n\r", ch);
+                target = TARGET_CHAR;
+                victim = NULL;
+            }
+        }
+        break;
 
 	case TAR_OBJ_CHAR_DEF:
 		if ((victim = get_char_room(ch, NULL, ch->cast_target_name))) {
 			target = TARGET_CHAR;
 			vo = (void *) victim;
-		} else if ((obj = get_obj_list(ch, ch->cast_target_name, ch->carrying))) {
+		} else {
+            obj = get_obj_list(ch, ch->cast_target_name, ch->lcarrying);
+            if (!obj) {
+                obj = get_obj_list(ch, ch->cast_target_name, ch->lworn);
+            }
+		if (obj) {
 			target = TARGET_OBJ;
 			vo = (void *) obj;
 		} else {
@@ -1554,21 +1592,51 @@ SPELL_FUNC(spell_null)
 // Find a warpstone(astral) on a character.
 OBJ_DATA *get_warp_stone(CHAR_DATA *ch)
 {
-	OBJ_DATA *obj;
-	OBJ_DATA *objNest;
+    OBJ_DATA *obj;
+    OBJ_DATA *objNest;
+    ITERATOR it;
 
-	for (obj = ch->carrying; obj != NULL; obj = obj->next_content) {
-		if (obj->item_type == ITEM_CATALYST && obj->value[0] == CATALYST_ASTRAL) {
-			return obj;
-		} else if (obj->contains) {
-			for (objNest = obj->contains; objNest; objNest = objNest->next_content) {
-				if (objNest->item_type == ITEM_CATALYST && obj->value[0] == CATALYST_ASTRAL)
-					return objNest;
-			}
-		}
-	}
+    // Check inventory using lcarrying
+    if (ch->lcarrying) {
+        iterator_start(&it, ch->lcarrying);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+            if (obj->item_type == ITEM_CATALYST && obj->value[0] == CATALYST_ASTRAL) {
+                iterator_stop(&it);
+                return obj;
+            } else if (obj->contains) {
+                // Check container contents
+                for (objNest = obj->contains; objNest; objNest = objNest->next_content) {
+                    if (objNest->item_type == ITEM_CATALYST && objNest->value[0] == CATALYST_ASTRAL) {
+                        iterator_stop(&it);
+                        return objNest;
+                    }
+                }
+            }
+        }
+        iterator_stop(&it);
+    }
 
-	return NULL;
+    // Also check worn items using lworn
+    if (ch->lworn) {
+        iterator_start(&it, ch->lworn);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+            if (obj->item_type == ITEM_CATALYST && obj->value[0] == CATALYST_ASTRAL) {
+                iterator_stop(&it);
+                return obj;
+            } else if (obj->contains) {
+                // Check worn container contents
+                for (objNest = obj->contains; objNest; objNest = objNest->next_content) {
+                    if (objNest->item_type == ITEM_CATALYST && objNest->value[0] == CATALYST_ASTRAL) {
+                        iterator_stop(&it);
+                        return objNest;
+                    }
+                }
+            }
+        }
+        iterator_stop(&it);
+    }
+
+    return NULL;
 }
 
 

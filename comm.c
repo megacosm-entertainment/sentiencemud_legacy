@@ -3074,6 +3074,7 @@ void act_new(char *format, CHAR_DATA *ch,
     char 		buf[ MAX_STRING_LENGTH   ];
     char 		fname[ MAX_INPUT_LENGTH  ];
     bool		see_all;
+    ITERATOR it;
 
 
     /*
@@ -3305,17 +3306,25 @@ void act_new(char *format, CHAR_DATA *ch,
 	}
 
     for(tch = ch->in_room->people; tch; tch = tch_next) 
-	{
-	    tch_next = tch->next_in_room;
+    {
+        tch_next = tch->next_in_room;
 
-	    for (obj = tch->carrying; obj; obj = obj_next)
-	    {
-		obj_next = obj->next_content;
-		p_act_trigger(buf, NULL, obj, NULL, ch, vch, vch2, obj1, obj2, TRIG_ACT,0,0,0,0,0);
-	    }
-	}
+            iterator_start(&it, tch->lcarrying);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it)))
+            {
+                p_act_trigger(buf, NULL, obj, NULL, ch, vch, vch2, obj1, obj2, TRIG_ACT, 0, 0, 0, 0, 0);
+            }
+            iterator_stop(&it);
+            
+            iterator_start(&it, tch->lworn);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it)))
+            {
+                p_act_trigger(buf, NULL, obj, NULL, ch, vch, vch2, obj1, obj2, TRIG_ACT, 0, 0, 0, 0, 0);
+            }
+            iterator_stop(&it);
+    }
 
-	p_act_trigger(buf, NULL, NULL, ch->in_room, ch, vch, vch2, obj1, obj2, TRIG_ACT,0,0,0,0,0);
+    p_act_trigger(buf, NULL, NULL, ch->in_room, ch, vch, vch2, obj1, obj2, TRIG_ACT, 0, 0, 0, 0, 0);
     }
 }
 

@@ -4575,11 +4575,39 @@ TOKEN_DATA *token_find_match(SCRIPT_VARINFO *info, TOKEN_DATA *tokens,char *argu
 bool has_item(CHAR_DATA *ch, WNUM wnum, int16_t item_type, bool fWear)
 {
     OBJ_DATA *obj;
-    for (obj = ch->carrying; obj; obj = obj->next_content)
-	if ((!wnum.pArea || wnum.vnum < 1 || wnum_match_obj(wnum, obj))
-	&&   (item_type < 0 || obj->pIndexData->item_type == item_type)
-	&&   (!fWear || obj->wear_loc != WEAR_NONE))
-	    return true;
+	ITERATOR it;
+	if (fWear && ch->lworn) {
+		iterator_start(&it, ch->lworn);
+		while((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+			if ((!wnum.pArea || wnum.vnum < 1 || wnum_match_obj(wnum, obj))
+			&&   (item_type < 0 || obj->pIndexData->item_type == item_type)
+			&&   (!fWear || obj->wear_loc != WEAR_NONE))
+				return true;
+		}
+		iterator_stop(&it);
+	}
+
+	if (ch->lquestitems) {
+		iterator_start(&it, ch->lquestitems);
+		while((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+			if ((!wnum.pArea || wnum.vnum < 1 || wnum_match_obj(wnum, obj))
+			&&   (item_type < 0 || obj->pIndexData->item_type == item_type)
+			&&   (!fWear || obj->wear_loc != WEAR_NONE))
+				return true;
+		}
+		iterator_stop(&it);
+		}
+
+	if (ch->lcarrying) {
+		iterator_start(&it, ch->lcarrying);
+		while((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+			if ((!wnum.pArea || wnum.vnum < 1 || wnum_match_obj(wnum, obj))
+			&&   (item_type < 0 || obj->pIndexData->item_type == item_type)
+			&&   (!fWear || obj->wear_loc != WEAR_NONE))
+				return true;
+		}
+		iterator_stop(&it);
+	}
     return false;
 }
 
@@ -4702,7 +4730,7 @@ void do_mob_transfer(CHAR_DATA *ch,ROOM_INDEX_DATA *room,bool quiet, int mode)
 			if( show )
 			{
 				send_to_char("You stop reciting.\n\r", ch);
-				act("$n stops reciting.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+				act("$n stops reciting.", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 			}
 			ch->recite = 0;
 		}
@@ -4728,39 +4756,39 @@ void do_mob_transfer(CHAR_DATA *ch,ROOM_INDEX_DATA *room,bool quiet, int mode)
 				{
 					if( !IS_NULLSTR(in_dungeon->index->zone_out_portal) )
 					{
-						act(in_dungeon->index->zone_out_portal, ch, NULL, NULL, portal, NULL, NULL, NULL, TO_ROOM);
+						act(in_dungeon->index->zone_out_portal, ch, NULL, NULL, portal, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 					}
 					else
 					{
-						act("$n has arrived through $p.",ch, NULL, NULL,portal, NULL, NULL,NULL,TO_ROOM);
+						act("$n has arrived through $p.",ch, NULL, NULL,portal, NULL, NULL,NULL,TO_ROOM, NULL, NULL);
 					}
 				}
 				else if(MOUNTED(ch))
 				{
 					if( !IS_NULLSTR(in_dungeon->index->zone_out_mount) )
-						act(in_dungeon->index->zone_out_mount, ch, MOUNTED(ch), NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+						act(in_dungeon->index->zone_out_mount, ch, MOUNTED(ch), NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 					else
 
-						act("{W$n materializes, riding on $N.{x", ch, MOUNTED(ch), NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+						act("{W$n materializes, riding on $N.{x", ch, MOUNTED(ch), NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 				}
 				else
 				{
 					if( !IS_NULLSTR(in_dungeon->index->zone_out) )
-						act(in_dungeon->index->zone_out, ch, NULL, NULL, portal, NULL, NULL, NULL, TO_ROOM);
+						act(in_dungeon->index->zone_out, ch, NULL, NULL, portal, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 					else
-						act("{W$n materializes.{x", ch,NULL,NULL,NULL,NULL, NULL, NULL, TO_ROOM);
+						act("{W$n materializes.{x", ch,NULL,NULL,NULL,NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 				}
 			}
 			else if(!MOUNTED(ch)) {
 				if (!IS_NPC(ch) && ch->pcdata->condition[COND_DRUNK] > 10)
-					act("{W$n stumbles in drunkenly.{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+					act("{W$n stumbles in drunkenly.{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 				else
-					act("{W$n has arrived.{x", ch,NULL,NULL,NULL,NULL, NULL, NULL, TO_ROOM);
+					act("{W$n has arrived.{x", ch,NULL,NULL,NULL,NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 			} else {
 				if (!IS_AFFECTED(MOUNTED(ch), AFF_FLYING))
-					act("{W$n has arrived, riding on $N.{x", ch, MOUNTED(ch), NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+					act("{W$n has arrived, riding on $N.{x", ch, MOUNTED(ch), NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 				else
-					act("{W$n soars in, riding on $N.{x", ch, MOUNTED(ch), NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+					act("{W$n soars in, riding on $N.{x", ch, MOUNTED(ch), NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 			}
 		}
 	}
@@ -4778,43 +4806,43 @@ void do_mob_transfer(CHAR_DATA *ch,ROOM_INDEX_DATA *room,bool quiet, int mode)
 				{
 					if( !IS_NULLSTR(in_dungeon->index->zone_out_portal) )
 					{
-						act(in_dungeon->index->zone_out_portal, ch, NULL, NULL, portal, NULL, NULL, NULL, TO_ROOM);
+						act(in_dungeon->index->zone_out_portal, ch, NULL, NULL, portal, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 					}
 					else
 					{
-						act("$n has arrived through $p.",ch, NULL, NULL,portal, NULL, NULL,NULL,TO_ROOM);
+						act("$n has arrived through $p.",ch, NULL, NULL,portal, NULL, NULL,NULL,TO_ROOM, NULL, NULL);
 					}
 				}
 				else if(MOUNTED(ch))
 				{
 					if( !IS_NULLSTR(in_dungeon->index->zone_out_mount) )
-						act(in_dungeon->index->zone_out_mount, ch, MOUNTED(ch), NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+						act(in_dungeon->index->zone_out_mount, ch, MOUNTED(ch), NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 					else
 
-						act("{W$n materializes, riding on $N.{x", ch, MOUNTED(ch), NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+						act("{W$n materializes, riding on $N.{x", ch, MOUNTED(ch), NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 				}
 				else
 				{
 					if( !IS_NULLSTR(in_dungeon->index->zone_out) )
-						act(in_dungeon->index->zone_out, ch, NULL, NULL, portal, NULL, NULL, NULL, TO_ROOM);
+						act(in_dungeon->index->zone_out, ch, NULL, NULL, portal, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 					else
-						act("{W$n materializes.{x", ch,NULL,NULL,NULL,NULL, NULL, NULL, TO_ROOM);
+						act("{W$n materializes.{x", ch,NULL,NULL,NULL,NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 				}
 			}
 			else if (in_room->sector->sector_class == SECTCLASS_WATER && IS_SET(in_room->sector_flags, SECTOR_DEEP_WATER))
-				act("{W$n swims in.{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+				act("{W$n swims in.{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 			else if (PULLING_CART(ch))
-				act("{W$n has arrived, pulling $p.{x", ch, NULL, NULL, PULLING_CART(ch), NULL, NULL, NULL, TO_ROOM);
+				act("{W$n has arrived, pulling $p.{x", ch, NULL, NULL, PULLING_CART(ch), NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 			else if(!MOUNTED(ch)) {
 				if (!IS_NPC(ch) && ch->pcdata->condition[COND_DRUNK] > 10)
-					act("{W$n stumbles in drunkenly.{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+					act("{W$n stumbles in drunkenly.{x", ch, NULL, NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 				else
-					act("{W$n has arrived.{x", ch,NULL,NULL,NULL,NULL, NULL, NULL, TO_ROOM);
+					act("{W$n has arrived.{x", ch,NULL,NULL,NULL,NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 			} else {
 				if (!IS_AFFECTED(MOUNTED(ch), AFF_FLYING))
-					act("{W$n has arrived, riding on $N.{x", ch, MOUNTED(ch), NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+					act("{W$n has arrived, riding on $N.{x", ch, MOUNTED(ch), NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 				else
-					act("{W$n soars in, riding on $N.{x", ch, MOUNTED(ch), NULL, NULL, NULL, NULL, NULL, TO_ROOM);
+					act("{W$n soars in, riding on $N.{x", ch, MOUNTED(ch), NULL, NULL, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
 			}
 		}
 	}
