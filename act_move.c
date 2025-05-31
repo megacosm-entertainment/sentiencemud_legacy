@@ -4710,12 +4710,14 @@ void check_see_hidden(CHAR_DATA *ch)
 {
 	OBJ_DATA *obj;
 
-	for (obj = ch->carrying; obj != NULL; obj = obj->next_content)
-	{
-		if (IS_SET(obj->extra[1], ITEM_SEE_HIDDEN) &&
-			obj->wear_loc != WEAR_NONE)
-			break;
+	ITERATOR it;
+	iterator_start(&it, ch->lworn);
+	while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+    	if (IS_SET(obj->extra[1], ITEM_SEE_HIDDEN)) {
+        	break;
+    	}
 	}
+	iterator_stop(&it);
 
 	if (obj)
 	{

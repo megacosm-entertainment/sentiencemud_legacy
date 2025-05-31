@@ -1651,30 +1651,28 @@ void do_put(CHAR_DATA *ch, char *argument)
 			i = 0;
 			match_obj = NULL;
 
-		    for (obj = ch->carrying; obj != NULL; obj = obj_next)
-		    {
-				obj_next = obj->next_content;
-
-				if (arg1[3] == '\0' || is_name(&arg1[4], obj->name))
-				    any = obj;
-
-				if (any == obj && can_put_obj(ch, obj, container, NULL, true))
-				{
-				    sprintf(short_descr, "%s", obj->short_descr);
-				    found = true;
-				    break;
-				}
-		    }
+            // First pass: find a matching object
+            ITERATOR it;
+            iterator_start(&it, ch->lcarrying);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+                if (arg1[3] == '\0' || is_name(&arg1[4], obj->name))
+                    any = obj;
+                if (any == obj && can_put_obj(ch, obj, container, NULL, true)) {
+                    snprintf(short_descr, sizeof(short_descr), "%s", obj->short_descr);
+                    found = true;
+                    break;
+                }
+            }
+            iterator_stop(&it);
 
 		    if (found)
 		    {
-				for (obj = ch->carrying; obj != NULL; obj = obj_next)
-				{
-				    obj_next = obj->next_content;
-
-				    if (str_cmp(obj->short_descr, short_descr) ||
-				    	!can_put_obj(ch, obj, container, NULL, false))
-						continue;
+                // Second pass: put all matching objects
+                iterator_start(&it, ch->lcarrying);
+                while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+                    if (str_cmp(obj->short_descr, short_descr) ||
+                        !can_put_obj(ch, obj, container, NULL, true))
+                        continue;
 
 					if (!container_can_fit_weight(container, obj))
 				    {
@@ -1987,18 +1985,22 @@ void do_drop(CHAR_DATA *ch, char *argument)
     else
     {
         /* Drop all/all.<obj> */
-	for (church = church_list; church != NULL; church = church->next)
-	{
-	    if (is_treasure_room(church, room))
-	    {
-		if (ch->church == church)
-		    send_to_char("Donations to the treasure room must be made using the church donate command.\n\r", ch);
-		else
-		    act("Only members of $t may donate to it.", ch, NULL, NULL, NULL, NULL, church->name, NULL, TO_CHAR, NULL, NULL);
+        ITERATOR it;
+        iterator_start(&it, list_churches);
+        while ((church = (CHURCH_DATA *)iterator_nextdata(&it)))
+        {
+            if (is_treasure_room(church, room))
+            {
+                if (ch->church == church)
+                    send_to_char("Donations to the treasure room must be made using the church donate command.\n\r", ch);
+                else
+                    act("Only members of $t may donate to it.", ch, NULL, NULL, NULL, NULL, church->name, NULL, TO_CHAR, NULL, NULL);
 
-		return;
-	    }
-	}
+                iterator_stop(&it);
+                return;
+            }
+        }
+        iterator_stop(&it);
 
 	while (found)
 	{
@@ -2006,59 +2008,59 @@ void do_drop(CHAR_DATA *ch, char *argument)
 	    i = 0;
 	    match_obj = NULL;
 
-	    for (obj = ch->carrying; obj != NULL; obj = obj_next)
-	    {
-		obj_next = obj->next_content;
-
-		if (arg[3] == '\0' || is_name(&arg[4], obj->name))
-		    any = obj;
-
-		if (any == obj && can_drop_obj(ch, obj, true) && !IS_SET(obj->extra[1], ITEM_KEPT) &&
-			!p_percent_trigger(NULL, obj, NULL, NULL, ch, NULL, NULL, NULL, NULL, TRIG_PREDROP, "silent",0,0,0,0,0))
-		{
-		    sprintf(short_descr, "%s", obj->short_descr);
-		    found = true;
-		    break;
-		}
-	    }
+            // First pass: find a matching object
+            iterator_start(&it, ch->lcarrying);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+                if (arg[3] == '\0' || is_name(&arg[4], obj->name))
+                    any = obj;
+                if (any == obj && can_drop_obj(ch, obj, true) && !IS_SET(obj->extra[1], ITEM_KEPT) &&
+                    !p_percent_trigger(NULL, obj, NULL, NULL, ch, NULL, NULL, NULL, NULL, TRIG_PREDROP, "silent"))
+                {
+                    snprintf(short_descr, sizeof(short_descr), "%s", obj->short_descr);
+                    found = true;
+                    break;
+                }
+            }
+            iterator_stop(&it);
 
 	    if (found)
 	    {
-		for (obj = ch->carrying; obj != NULL; obj = obj_next)
-		{
-		    obj_next = obj->next_content;
 
-		    if (str_cmp(obj->short_descr, short_descr)
-		    ||  !can_drop_obj(ch, obj, true) || IS_SET(obj->extra[1], ITEM_KEPT))
-			continue;
+                iterator_start(&it, ch->lcarrying);
+                while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+                    if (str_cmp(obj->short_descr, short_descr)
+                        ||  !can_drop_obj(ch, obj, true) || IS_SET(obj->extra[1], ITEM_KEPT))
+                        continue;
 
-		if(p_percent_trigger(NULL, obj, NULL, NULL, ch, NULL, NULL, NULL, NULL, TRIG_PREDROP, NULL,0,0,0,0,0))
-			continue;
+                    if(p_percent_trigger(NULL, obj, NULL, NULL, ch, NULL, NULL, NULL, NULL, TRIG_PREDROP, NULL))
+                        continue;
 
-		    if (match_obj == NULL && obj != NULL)
-			match_obj = obj;
+                    if (match_obj == NULL && obj != NULL)
+                        match_obj = obj;
 
-		    obj_from_char(obj);
-		    obj_to_room(obj, ch->in_room);
-		    i++;
+                    obj_from_char(obj);
+                    obj_to_room(obj, ch->in_room);
+                    i++;
 
-			if (IS_IMMORTAL(ch) && !IS_NPC(ch)) {
-			    sprintf(buf, "%s drops %s.", ch->name, obj->short_descr);
-			    log_string(buf);
-			    wiznet(buf, NULL, NULL, WIZ_IMMLOG, 0, 0);
-			}
+                    if (IS_IMMORTAL(ch) && !IS_NPC(ch)) {
+                        sprintf(buf, "%s drops %s.", ch->name, obj->short_descr);
+                        log_string(buf);
+                        wiznet(buf, NULL, NULL, WIZ_IMMLOG, 0, 0);
+                    }
 
-			p_percent_trigger(NULL, obj, NULL, NULL, ch, NULL, NULL, obj, NULL, TRIG_DROP, NULL,0,0,0,0,0);
-		    p_give_trigger(NULL, NULL, ch->in_room, ch, obj, TRIG_DROP,0,0,0,0,0);
+                    p_percent_trigger(NULL, obj, NULL, NULL, ch, NULL, NULL, obj, NULL, TRIG_DROP, NULL);
+                    p_give_trigger(NULL, NULL, ch->in_room, ch, obj, TRIG_DROP);
 
+                    if (IS_SET(obj->extra[0], ITEM_MELT_DROP))
+                        extract_obj(obj);
 
-		    if (IS_SET(obj->extra[0], ITEM_MELT_DROP))
-				extract_obj(obj);
 			else if (IS_SET(ch->in_room->sector_flags, SECTOR_CRUMBLES))
 				extract_obj(obj);
 			else if (IS_SET(ch->in_room->sector_flags, SECTOR_MELTS))
 				extract_obj(obj);
-		}
+                }
+                iterator_stop(&it);
+
 
 		if (i > 0 && match_obj != NULL)
 		{

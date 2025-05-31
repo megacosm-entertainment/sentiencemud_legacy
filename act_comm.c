@@ -1434,14 +1434,13 @@ void do_logout(CHAR_DATA *ch, char *argument)
     save_last_wear(ch);
 
     /* Remove hitpoint type affects */
-    for (obj = ch->carrying; obj != NULL; obj = obj->next_content)
-    {
-        if (obj->wear_loc != WEAR_NONE)
-        {
-            for (paf = obj->affected; paf != NULL; paf = paf->next)
-                affect_modify(ch, paf, false);
-        }
-    }
+	ITERATOR it;
+	iterator_start(&it, ch->lworn);
+	while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+    	for (paf = obj->affected; paf != NULL; paf = paf->next)
+        	affect_modify(ch, paf, false);
+	}
+	iterator_stop(&it);
 
     /* Reset imms bank accounts */
     if (IS_IMMORTAL(ch) && !IS_IMPLEMENTOR(ch))
