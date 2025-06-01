@@ -1095,35 +1095,36 @@ void affect_fix_char(CHAR_DATA *ch)
 	}
 
 	// Iterate through all worn objects
-	for(obj = ch->carrying; obj; obj = obj->next_content)
-	{
-		if( !obj->locker && obj->wear_loc != WEAR_NONE )
-		{
-			for(paf = obj->affected; paf; paf = paf->next)
-			{
-				switch (paf->where)
-				{
-					case TO_AFFECTS:
-						SET_BIT(ch->affected_by[0], paf->bitvector);
-						SET_BIT(ch->affected_by[1], paf->bitvector2);
+    if (ch->lworn) {
+        iterator_start(&it, ch->lworn);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it)))
+        {
+            for(paf = obj->affected; paf; paf = paf->next)
+            {
+                switch (paf->where)
+                {
+                    case TO_AFFECTS:
+                        SET_BIT(ch->affected_by[0], paf->bitvector);
+                        SET_BIT(ch->affected_by[1], paf->bitvector2);
 
-						if( IS_SET(paf->bitvector2, AFF2_DEATHSIGHT) && (paf->level > ch->deathsight_vision) )
-							ch->deathsight_vision = paf->level;
+                        if( IS_SET(paf->bitvector2, AFF2_DEATHSIGHT) && (paf->level > ch->deathsight_vision) )
+                            ch->deathsight_vision = paf->level;
 
-						break;
-					case TO_IMMUNE:
-						SET_BIT(ch->imm_flags,paf->bitvector);
-						break;
-					case TO_RESIST:
-						SET_BIT(ch->res_flags,paf->bitvector);
-						break;
-					case TO_VULN:
-						SET_BIT(ch->vuln_flags,paf->bitvector);
-						break;
-				}
-			}
-		}
-	}
+                        break;
+                    case TO_IMMUNE:
+                        SET_BIT(ch->imm_flags, paf->bitvector);
+                        break;
+                    case TO_RESIST:
+                        SET_BIT(ch->res_flags, paf->bitvector);
+                        break;
+                    case TO_VULN:
+                        SET_BIT(ch->vuln_flags, paf->bitvector);
+                        break;
+                }
+            }
+        }
+        iterator_stop(&it);
+    }
 
 }
 
@@ -1325,43 +1326,46 @@ void affect_check(CHAR_DATA *ch, int where, long vector, long vector2)
 		}
 	}
 
-	for (obj = ch->carrying; obj != NULL; obj = obj->next_content)
-	{
-		if (obj->wear_loc == -1)
-			continue;
-
-		for (paf = obj->affected; paf != NULL; paf = paf->next)
-		{
-			if (paf->where == where && paf->bitvector == vector)
-			{
-				switch (where)
-				{
-				case TO_AFFECTS:
-					SET_BIT(ch->affected_by[0],vector);
-					break;
-				case TO_IMMUNE:
-					SET_BIT(ch->imm_flags,vector);
-					break;
-				case TO_RESIST:
-					SET_BIT(ch->res_flags,vector);
-					break;
-				case TO_VULN:
-					SET_BIT(ch->vuln_flags,vector);
-				}
-				return;
-			}
-			else if (paf->where == where && paf->bitvector2 == vector2)
-			{
-				switch (where)
-				{
-				case TO_AFFECTS:
-					SET_BIT(ch->affected_by[1],vector2);
-					break;
-				}
-				return;
-			}
-		}
-	}
+    if (ch->lworn) {
+        iterator_start(&it, ch->lworn);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it)))
+        {
+            for (paf = obj->affected; paf != NULL; paf = paf->next)
+            {
+                if (paf->where == where && paf->bitvector == vector)
+                {
+                    switch (where)
+                    {
+                    case TO_AFFECTS:
+                        SET_BIT(ch->affected_by[0],vector);
+                        break;
+                    case TO_IMMUNE:
+                        SET_BIT(ch->imm_flags,vector);
+                        break;
+                    case TO_RESIST:
+                        SET_BIT(ch->res_flags,vector);
+                        break;
+                    case TO_VULN:
+                        SET_BIT(ch->vuln_flags,vector);
+                    }
+                    iterator_stop(&it);
+                    return;
+                }
+                else if (paf->where == where && paf->bitvector2 == vector2)
+                {
+                    switch (where)
+                    {
+                    case TO_AFFECTS:
+                        SET_BIT(ch->affected_by[1],vector2);
+                        break;
+                    }
+                    iterator_stop(&it);
+                    return;
+                }
+            }
+        }
+        iterator_stop(&it);
+    }
 }
 
 
@@ -2259,8 +2263,6 @@ void obj_to_locker(OBJ_DATA *obj, CHAR_DATA *ch)
  */
 void obj_to_char(OBJ_DATA *obj, CHAR_DATA *ch)
 {
-    obj->next_content	 = ch->carrying;
-    ch->carrying	 = obj;
     obj->carried_by	 = ch;
     obj->in_room	 = ch->in_room;
     obj->in_obj		 = NULL;
@@ -2303,8 +2305,10 @@ void obj_to_char(OBJ_DATA *obj, CHAR_DATA *ch)
 		extract_obj(obj);
 		return;
     }
-	if (!list_haslink(ch->lcarrying, obj))
-    	list_addlink(ch->lcarrying, obj);
+    // Add to the LLIST only if it's not equipped (wear_loc == WEAR_NONE)
+    // This ensures lcarrying only contains objects in the active inventory
+    if (obj->wear_loc == WEAR_NONE && !list_haslink(ch->lcarrying, obj))
+        list_addlink(ch->lcarrying, obj);
 
     if (!IS_NPC(ch))
         check_mission_retrieve_obj(ch, obj, true);
@@ -2394,40 +2398,23 @@ void obj_from_char(OBJ_DATA *obj)
 
     if ((ch = obj->carried_by) == NULL)
     {
-	bug("Obj_from_char: null ch.", 0);
-	return;
+        bug("Obj_from_char: null ch.", 0);
+        return;
     }
 
     /* Unequip it first */
     if (obj->wear_loc != WEAR_NONE)
-	unequip_char(ch, obj, false);
-
-    if (ch->carrying == obj)
-	ch->carrying = obj->next_content;
-    else
-    {
-	OBJ_DATA *prev;
-
-	for (prev = ch->carrying; prev != NULL; prev = prev->next_content)
-	{
-	    if (prev->next_content == obj)
-	    {
-		prev->next_content = obj->next_content;
-		break;
-	    }
-	}
-
-	if (prev == NULL && !obj->locker)
-	    bug("Obj_from_char: obj not in list.", 0);
-    }
+        unequip_char(ch, obj, false);
 
     --obj->pIndexData->carried;
 
     REMOVE_BIT(obj->extra[0], ITEM_INVENTORY);
-    obj->carried_by	 = NULL;
-    obj->next_content	 = NULL;
-    ch->carry_number	-= get_obj_number(obj);
-    ch->carry_weight	-= get_obj_weight(obj);
+    obj->carried_by = NULL;
+    obj->next_content = NULL;
+    ch->carry_number -= get_obj_number(obj);
+    ch->carry_weight -= get_obj_weight(obj);
+    
+    /* Remove from the LLIST */
     list_remlink(ch->lcarrying, obj, false);
 }
 
@@ -2475,16 +2462,24 @@ int apply_ac(OBJ_DATA *obj, int iWear, int type)
 OBJ_DATA *get_eq_char(CHAR_DATA *ch, int iWear)
 {
     OBJ_DATA *obj;
-
+    ITERATOR it;
+    
     if (ch == NULL)
-	return NULL;
-
-    for (obj = ch->carrying; obj != NULL; obj = obj->next_content)
-    {
-	if (obj->wear_loc == iWear)
-	    return obj;
+        return NULL;
+    
+    // Use the lworn LLIST for better performance
+    if (ch->lworn) {
+        iterator_start(&it, ch->lworn);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+            if (obj->wear_loc == iWear) {
+                iterator_stop(&it);
+                return obj;
+            }
+        }
+        iterator_stop(&it);
+        return NULL;
     }
-
+    
     return NULL;
 }
 

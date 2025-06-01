@@ -204,17 +204,26 @@ memset(&af,0,sizeof(af));
             affect_join( victim, &af );
 	}
 
-	/* hunger! (warmth sucked out */
-	if (!IS_NPC(victim))
-	    gain_condition(victim,COND_HUNGER,dam/20);
-
-	/* let's toast some gear */
-	for (obj = victim->carrying; obj != NULL; obj = obj_next)
-	{
-	    obj_next = obj->next_content;
-	    cold_effect(obj,level,dam,TARGET_OBJ);
-	}
-	return;
+    /* let's toast some gear - first carried items */
+    if (victim->lcarrying) {
+            iterator_start(&it, victim->lcarrying);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it)))
+            {
+                cold_effect(obj, level, dam, TARGET_OBJ);
+            }
+            iterator_stop(&it);
+        }
+        
+        /* then worn items */
+        if (victim->lworn) {
+            iterator_start(&it, victim->lworn);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it)))
+            {
+                cold_effect(obj, level, dam, TARGET_OBJ);
+            }
+            iterator_stop(&it);
+        }
+    return;
    }
 
    if (target == TARGET_OBJ) /* toast an object */
@@ -324,11 +333,23 @@ memset(&af,0,sizeof(af));
 	}
 
 	/* let's toast some gear! */
-	for (obj = victim->carrying; obj != NULL; obj = obj_next)
-	{
-	    obj_next = obj->next_content;
-
-	    fire_effect(obj,level,dam,TARGET_OBJ);
+        if (victim->lcarrying) {
+            iterator_start(&it, victim->lcarrying);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it)))
+            {
+                fire_effect(obj, level, dam, TARGET_OBJ);
+            }
+            iterator_stop(&it);
+        }
+        
+        /* then worn items */
+        if (victim->lworn) {
+            iterator_start(&it, victim->lworn);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it)))
+            {
+                fire_effect(obj, level, dam, TARGET_OBJ);
+            }
+            iterator_stop(&it);
         }
 	return;
     }
@@ -487,11 +508,25 @@ memset(&af,0,sizeof(af));
         }
 
 	/* equipment */
-	for (obj = victim->carrying; obj != NULL; obj = obj_next)
-	{
-	    obj_next = obj->next_content;
-	    poison_effect(obj,level,dam,TARGET_OBJ);
-	}
+    /* equipment - carried items */
+        if (victim->lcarrying) {
+            iterator_start(&it, victim->lcarrying);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it)))
+            {
+                poison_effect(obj, level, dam, TARGET_OBJ);
+            }
+            iterator_stop(&it);
+        }
+        
+        /* worn items */
+        if (victim->lworn) {
+            iterator_start(&it, victim->lworn);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it)))
+            {
+                poison_effect(obj, level, dam, TARGET_OBJ);
+            }
+            iterator_stop(&it);
+        }
 
 	return;
     }
@@ -574,12 +609,26 @@ void shock_effect(void *vo,int level, int dam, int target)
 	    DAZE_STATE(victim, 12);//UMAX(12,level/4 + dam/20));
 	}
 
-	/* toast some gear */
-	for (obj = victim->carrying; obj != NULL; obj = obj_next)
-	{
-	    obj_next = obj->next_content;
-	    shock_effect(obj,level,dam,TARGET_OBJ);
-	}
+
+    /* toast some gear - carried items */
+        if (victim->lcarrying) {
+            iterator_start(&it, victim->lcarrying);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it)))
+            {
+                shock_effect(obj, level, dam, TARGET_OBJ);
+            }
+            iterator_stop(&it);
+        }
+        
+        /* worn items */
+        if (victim->lworn) {
+            iterator_start(&it, victim->lworn);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it)))
+            {
+                shock_effect(obj, level, dam, TARGET_OBJ);
+            }
+            iterator_stop(&it);
+        }
 	return;
     }
 

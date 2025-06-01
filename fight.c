@@ -196,6 +196,15 @@ void violence_update(void)
             iterator_stop(&it);
         }
 
+		// Process quest items and fire their triggers
+        if (ch->lquestitems) {
+            iterator_start(&it, ch->lquestitems);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+                p_percent_trigger(NULL, obj, NULL, NULL, victim, NULL, NULL, NULL, NULL, TRIG_FIGHT, NULL,0,0,0,0,0);
+            }
+            iterator_stop(&it);
+        }
+
 		p_percent_trigger(NULL, NULL, ch->in_room, NULL, ch, victim, NULL, NULL, NULL, TRIG_FIGHT, NULL,0,0,0,0,0);
 	}
 	iterator_stop(&ait);
@@ -1436,38 +1445,45 @@ bool damage_new(CHAR_DATA *ch, CHAR_DATA *victim, OBJ_DATA *weapon, int dam, SKI
 	}
 
 	// Armour and weapons decay with use
-	for (vObj = victim->carrying; vObj; vObj = vObj->next_content)
-		if (vObj->wear_loc != WEAR_NONE && (!IS_SET(vObj->extra[0], ITEM_BLESS || number_percent() < 33))) {
-			switch(vObj->fragility) {
-			case OBJ_FRAGILE_SOLID:  break;
-			case OBJ_FRAGILE_STRONG:
-				if (number_range(0,9999) <= 2)
-					vObj->condition--;
-				break;
-			case OBJ_FRAGILE_NORMAL:
-				if (number_range(0,9999) <= 5)
-					vObj->condition--;
-				break;
-			case OBJ_FRAGILE_WEAK:
-				if (number_range(0,9999) <= 20)
-					vObj->condition--;
-				break;
-			default: break;
-			}
+if (victim->lworn) {
+    ITERATOR it;
+    
+    iterator_start(&it, victim->lworn);
+    while ((vObj = (OBJ_DATA *)iterator_nextdata(&it))) {
+        if (!IS_SET(vObj->extra[0], ITEM_BLESS || number_percent() < 33)) {
+            switch(vObj->fragility) {
+            case OBJ_FRAGILE_SOLID:  break;
+            case OBJ_FRAGILE_STRONG:
+                if (number_range(0,9999) <= 2)
+                    vObj->condition--;
+                break;
+            case OBJ_FRAGILE_NORMAL:
+                if (number_range(0,9999) <= 5)
+                    vObj->condition--;
+                break;
+            case OBJ_FRAGILE_WEAK:
+                if (number_range(0,9999) <= 20)
+                    vObj->condition--;
+                break;
+            default: break;
+            }
 
-			if (vObj->condition <= 0) {
-				if (IS_WEAPON(vObj)) {
-					unequip_char(victim, vObj, true);
-					act("{y$n's $p breaks in two with a loud snap!{x", victim, NULL, NULL, vObj, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
-					act("{y$p splits in two with a loud snap!{x", victim, NULL, NULL, vObj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
-					vObj->condition = 0;
-				} else {
-					extract_obj(vObj);
-					act("{y$n's $p falls into pieces!{x", victim, NULL, NULL, vObj, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
-					act("{y$p breaks apart and crumbles!{x", victim, NULL, NULL, vObj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
-				}
-			}
-		}
+            if (vObj->condition <= 0) {
+                if (vObj->item_type == ITEM_WEAPON) {
+                    unequip_char(victim, vObj, true);
+                    act("{y$n's $p breaks in two with a loud snap!{x", victim, NULL, NULL, vObj, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
+                    act("{y$p splits in two with a loud snap!{x", victim, NULL, NULL, vObj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+                    vObj->condition = 0;
+                } else {
+                    extract_obj(vObj);
+                    act("{y$n's $p falls into pieces!{x", victim, NULL, NULL, vObj, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
+                    act("{y$p breaks apart and crumbles!{x", victim, NULL, NULL, vObj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+                }
+            }
+        }
+    }
+    iterator_stop(&it);
+}
 
 	// Apply immunity/resistant/vuln
 	switch(check_immune(victim,dam_type)) {
@@ -3779,12 +3795,16 @@ OBJ_DATA *raw_kill(CHAR_DATA *victim, bool has_head, bool messages, CORPSE_TYPE 
 	}
 
 	/* take their stuff off them while dead */
-	for (obj = victim->carrying; obj != NULL; obj = obj->next_content) {
-		if (obj->wear_loc != WEAR_NONE &&
-			WEAR_UNEQUIP_DEATH(obj->wear_loc) &&
-			!IS_SET(obj->extra[2], ITEM_KEEP_EQUIPPED))
-			unequip_char(victim, obj, true);
-	}
+    if (victim->lworn) {
+        ITERATOR it;
+        
+        iterator_start(&it, victim->lworn);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+            if (WEAR_UNEQUIP_DEATH(obj->wear_loc) && !IS_SET(obj->extra[2], ITEM_KEEP_EQUIPPED))
+                unequip_char(victim, obj, true);
+        }
+        iterator_stop(&it);
+    }
 
 	// If switched, switch them back then kill them
 	if (IS_SWITCHED(victim))
@@ -3889,18 +3909,37 @@ OBJ_DATA *raw_kill(CHAR_DATA *victim, bool has_head, bool messages, CORPSE_TYPE 
 	wiznet(buf,NULL,NULL,WIZ_DEATHS,0,STAFF_IMPLEMENTOR);
 
 
-	if (IS_NPC(victim) && (IS_SET(victim->act[1], ACT2_DROP_EQ) || !IS_VALID(corpse_type))) {
-		OBJ_DATA *obj_next;
-
-		for (obj = victim->carrying; obj != NULL; obj = obj_next)
-		{
-			obj_next = obj->next_content;
-
-			if(messages) act("$n drops $p.", victim, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
-			obj_from_char(obj);
-			obj_to_room(obj, victim->in_room);
-		}
-	}
+    if (IS_NPC(victim) && (IS_SET(victim->act[1], ACT2_DROP_EQ) || (corpse_type == RAWKILL_NOCORPSE))) {
+        // Drop carried items
+        if (victim->lcarrying) {
+            ITERATOR it;
+            
+            iterator_start(&it, victim->lcarrying);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+                //obj_next = obj->next_content;
+                
+                if(messages) act("$n drops $p.", victim, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
+                obj_from_char(obj);
+                obj_to_room(obj, victim->in_room);
+            }
+            iterator_stop(&it);
+        }
+        
+        // Drop worn items
+        if (victim->lworn) {
+            ITERATOR it;
+            
+            iterator_start(&it, victim->lworn);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+                //obj_next = obj->next_content;
+                
+                if(messages) act("$n drops $p.", victim, NULL, NULL, obj, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
+                obj_from_char(obj);
+                obj_to_room(obj, victim->in_room);
+            }
+            iterator_stop(&it);
+        }
+    }
 
 	while (victim->affected)
 		affect_remove(victim, victim->affected);
@@ -4000,8 +4039,35 @@ OBJ_DATA *raw_kill(CHAR_DATA *victim, bool has_head, bool messages, CORPSE_TYPE 
 
 
 
-	for (obj = victim->carrying; obj != NULL; obj = obj->next_content)
-	SET_BIT(obj->extra[1], ITEM_UNSEEN);
+    if (victim->lcarrying) {
+        ITERATOR it;
+        
+        iterator_start(&it, victim->lcarrying);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+            SET_BIT(obj->extra[1], ITEM_UNSEEN);
+        }
+        iterator_stop(&it);
+    }
+    
+    if (victim->lworn) {
+        ITERATOR it;
+        
+        iterator_start(&it, victim->lworn);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+            SET_BIT(obj->extra[1], ITEM_UNSEEN);
+        }
+        iterator_stop(&it);
+    }
+
+	if (victim->lquestitems) {
+        ITERATOR it;
+        
+        iterator_start(&it, victim->lquestitems);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it))) {
+            SET_BIT(obj->extra[1], ITEM_UNSEEN);
+        }
+        iterator_stop(&it);
+    }
 	/*
 	If you want people to carry eq when dead, put it here
 	and DON'T FORGET TO TAKE IT OFF THEM WHEN THEY ARE BROUGHT
