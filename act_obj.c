@@ -6118,29 +6118,37 @@ bool get_stock_keeper(CHAR_DATA *ch, CHAR_DATA *keeper, SHOP_REQUEST_DATA *reque
 		}
 	}
 
-	for (obj = keeper->carrying; obj != NULL; obj = obj->next_content)
-	{
-		if (IS_OBJ_STAT(obj, ITEM_INVENTORY) &&
-			obj->wear_loc == WEAR_NONE &&
-        	can_see_obj(keeper, obj) &&
-        	can_see_obj(ch,obj) &&
-        	is_name(arg, obj->name))
+    // Track items we've already seen to avoid duplicates
+    OBJ_DATA *last_match = NULL;
+
+    ITERATOR it;
+    iterator_start(&it, keeper->lcarrying);
+    while((obj = (OBJ_DATA *)iterator_nextdata(&it)))
+    {
+        if(IS_OBJ_STAT(obj, ITEM_INVENTORY) &&
+            obj->wear_loc == WEAR_NONE &&
+            can_see_obj(keeper, obj) &&
+            can_see_obj(ch, obj) &&
+            is_name(arg, obj->name))
         {
-			if (++count == number)
-			{
-				request->stock = NULL;
-				request->obj = obj;
-				return true;
-			}
+            // Skip if this is a duplicate of the last matched object
+            if(last_match != NULL && 
+                obj->pIndexData == last_match->pIndexData &&
+                !str_cmp(obj->short_descr, last_match->short_descr))
+                continue;
 
-			/* skip other objects of the same name */
-			while (obj->next_content != NULL &&
-				obj->pIndexData == obj->next_content->pIndexData &&
-				!str_cmp(obj->short_descr,obj->next_content->short_descr))
-				obj = obj->next_content;
-		}
-	}
+            last_match = obj;
 
+            if(++count == number)
+            {
+                iterator_stop(&it);
+                request->stock = NULL;
+                request->obj = obj;
+                return true;
+            }
+        }
+    }
+    iterator_stop(&it);
 
 	return false;
 }
@@ -6159,26 +6167,34 @@ OBJ_DATA *get_obj_keeper(CHAR_DATA *ch, CHAR_DATA *keeper, char *argument)
     count  = 0;
 
 
-	for (obj = keeper->carrying; obj != NULL; obj = obj->next_content)
-	{
-		if (obj->wear_loc == WEAR_NONE &&
-        	can_see_obj(keeper, obj) &&
-        	can_see_obj(ch,obj) &&
-        	is_name(arg, obj->name))
+    // Track items we've already seen to avoid duplicates
+    OBJ_DATA *last_match = NULL;
+
+    ITERATOR it;
+    iterator_start(&it, keeper->lcarrying);
+    while ((obj = (OBJ_DATA *)iterator_nextdata(&it)))
+    {
+        if (obj->wear_loc == WEAR_NONE &&
+            can_see_obj(keeper, obj) &&
+            can_see_obj(ch, obj) &&
+            is_name(arg, obj->name))
         {
-			if (++count == number)
-			{
-				return obj;
-			}
+            // Skip if this is a duplicate of the last matched object
+            if (last_match != NULL && 
+                obj->pIndexData == last_match->pIndexData &&
+                !str_cmp(obj->short_descr, last_match->short_descr))
+                continue;
 
-			/* skip other objects of the same name */
-			while (obj->next_content != NULL &&
-				obj->pIndexData == obj->next_content->pIndexData &&
-				!str_cmp(obj->short_descr,obj->next_content->short_descr))
-				obj = obj->next_content;
-		}
-	}
-
+            last_match = obj;
+            
+            if (++count == number)
+            {
+                iterator_stop(&it);
+                return obj;
+            }
+        }
+    }
+    iterator_stop(&it);
 
     return NULL;
 }
@@ -6211,15 +6227,20 @@ int get_cost(CHAR_DATA *keeper, OBJ_DATA *obj, bool fBuy)
 		    }
 		}
 
-		for (obj2 = keeper->carrying; obj2; obj2 = obj2->next_content)
-		{
-		    if (IS_OBJ_STAT(obj2,ITEM_INVENTORY) &&
-				obj->pIndexData == obj2->pIndexData &&
-		    	!str_cmp(obj->short_descr,obj2->short_descr))
-			{
-				cost = cost * 3 / 4;
-			}
-		}
+        // Check for duplicate items that affect price
+        ITERATOR it;
+        iterator_start(&it, keeper->lcarrying);
+        while ((obj2 = (OBJ_DATA *)iterator_nextdata(&it)))
+        {
+            if (IS_OBJ_STAT(obj2, ITEM_INVENTORY) &&
+                obj->pIndexData == obj2->pIndexData &&
+                !str_cmp(obj->short_descr, obj2->short_descr))
+            {
+                cost = cost * 3 / 4;
+                break;
+            }
+        }
+        iterator_stop(&it);
     }
 
 	/*
@@ -7273,36 +7294,46 @@ void do_list(CHAR_DATA *ch, char *argument)
 			}
 		}
 
-		for (obj = keeper->carrying; obj; obj = obj->next_content)
-		{
-		    if (IS_OBJ_STAT(obj,ITEM_INVENTORY) &&
-				obj->wear_loc == WEAR_NONE &&
-		    	can_see_obj(ch, obj) &&
-		    	(cost = get_cost(keeper, obj, true)) > 0 &&
-		    	(arg[0] == '\0' || is_name(arg,obj->name)))
-	    	{
-				if (!found)
-				{
-					found = true;
-					send_to_char("{B[ {GLv       Price     Qty{B ]{x {YItem{x\n\r", ch);
-				}
+        ITERATOR it;
+        iterator_start(&it, keeper->lcarrying);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it)))
+        {
+            if (IS_OBJ_STAT(obj,ITEM_INVENTORY) &&
+                obj->wear_loc == WEAR_NONE &&
+                can_see_obj(ch, obj) &&
+                (cost = get_cost(keeper, obj, true)) > 0 &&
+                (arg[0] == '\0' || is_name(arg,obj->name)))
+            {
+                if (!found)
+                {
+                    found = true;
+                    send_to_char("{B[ {GLv       Price     Qty{B ]{x {YItem{x\n\r", ch);
+                }
 
-				count = 1;
+                count = 1;
 
-				while (obj->next_content != NULL &&
-						IS_OBJ_STAT(obj->next_content,ITEM_INVENTORY) &&
-						obj->pIndexData == obj->next_content->pIndexData &&
-						!str_cmp(obj->short_descr, obj->next_content->short_descr))
-				{
-					obj = obj->next_content;
-					count++;
-				}
+                // Count identical items
+                ITERATOR inner_it;
+                OBJ_DATA *t_obj;
+                iterator_start(&inner_it, keeper->lcarrying);
+                while ((t_obj = (OBJ_DATA *)iterator_nextdata(&inner_it)))
+                {
+                    if (t_obj != obj &&
+                        IS_OBJ_STAT(t_obj, ITEM_INVENTORY) &&
+                        obj->pIndexData == t_obj->pIndexData &&
+                        !str_cmp(obj->short_descr, t_obj->short_descr))
+                    {
+                        count++;
+                    }
+                }
+                iterator_stop(&inner_it);
 
-				sprintf(buf,"{B[{x%3d %14d {Y%4d{B ]{x %s\n\r", obj->level,cost,count,obj->short_descr);
+                sprintf(buf,"{B[{x%3d %14d {Y%4d{B ]{x %s\n\r", obj->level,cost,count,obj->short_descr);
 
-				send_to_char(buf, ch);
-		    }
-		}
+                send_to_char(buf, ch);
+            }
+        }
+        iterator_stop(&it);
 
 		if (!found)
 			send_to_char("You can't buy anything here.\n\r", ch);

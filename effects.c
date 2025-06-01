@@ -39,12 +39,25 @@ void acid_effect(void *vo, int level, int dam, int target)
     {
         victim = (CHAR_DATA *) vo;
 
-	/* let's toast some gear */
-	for (obj = victim->carrying; obj != NULL; obj = obj_next)
-	{
-	    obj_next = obj->next_content;
-	    acid_effect(obj,level,dam,TARGET_OBJ);
-	}
+    /* let's toast some gear - first carried items */
+    if (victim->lcarrying) {
+            iterator_start(&it, victim->lcarrying);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it)))
+            {
+                acid_effect(obj, level, dam, TARGET_OBJ);
+            }
+            iterator_stop(&it);
+        }
+        
+        /* then worn items */
+        if (victim->lworn) {
+            iterator_start(&it, victim->lworn);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it)))
+            {
+                acid_effect(obj, level, dam, TARGET_OBJ);
+            }
+            iterator_stop(&it);
+        }
 	return;
     }
 

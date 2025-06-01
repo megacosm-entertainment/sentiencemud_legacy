@@ -504,13 +504,13 @@ void do_combine(CHAR_DATA *ch, char *argument)
     }
 
     /* setup objects*/
-    if ((obj1 = get_obj_list(ch, arg, ch->carrying)) == NULL)
+    if ((obj1 = get_obj_list(ch, arg, ch->lcarrying)) == NULL)
     {
 		act("You aren't carrying any $t.", ch, NULL, NULL, NULL, NULL, arg, NULL, TO_CHAR);
 		return;
     }
 
-    if ((obj2 = get_obj_list(ch, arg2, ch->carrying)) == NULL)
+    if ((obj2 = get_obj_list(ch, arg2, ch->lcarrying)) == NULL)
     {
 		act("You aren't carrying any $t.", ch, NULL, NULL, NULL, NULL, arg2, NULL, TO_CHAR);
 		return;

@@ -5555,14 +5555,27 @@ void do_clone(CHAR_DATA *ch, char *argument)
 
 	clone = clone_mobile(mob);
 
-	for (obj = mob->carrying; obj != NULL; obj = obj->next_content)
-	{
-		new_obj = create_object(obj->pIndexData,0, true);
-		clone_object(obj,new_obj);
-		recursive_clone(ch,obj,new_obj);
-		obj_to_char(new_obj,clone);
-		new_obj->wear_loc = obj->wear_loc;
-	}
+        iterator_start(&it, mob->lcarrying);
+        while ((carried_obj = (OBJ_DATA *)iterator_nextdata(&it)))
+        {
+            new_obj = create_object(carried_obj->pIndexData, 0, true);
+            clone_object(carried_obj, new_obj);
+            recursive_clone(ch, carried_obj, new_obj);
+            obj_to_char(new_obj, clone);
+            new_obj->wear_loc = carried_obj->wear_loc;
+        }
+        iterator_stop(&it);
+
+        iterator_start(&it, mob->lwprm);
+        while ((worn_obj = (OBJ_DATA *)iterator_nextdata(&it)))
+        {
+            new_obj = create_object(worn_obj->pIndexData, 0, true);
+            clone_object(worn_obj, new_obj);
+            recursive_clone(ch, worn_obj, new_obj);
+            obj_to_char(new_obj, clone);
+            new_obj->wear_loc = worn_obj->wear_loc;
+        }
+        iterator_stop(&it);
 	char_to_room(clone,ch->in_room);
         act("$n has created $N.",ch,clone, NULL, NULL, NULL, NULL, NULL,TO_ROOM, NULL, NULL);
         act("You clone $N.",ch,clone, NULL, NULL, NULL, NULL, NULL,TO_CHAR, NULL, NULL);
@@ -9546,18 +9559,89 @@ void do_junk(CHAR_DATA *ch, char *argument)
 	    return;
     }
 
-    for (obj = victim->carrying; obj != NULL; obj = obj_next)
+    // Iterate over lcarrying
+    if (victim->lcarrying) // Check if the list exists before starting iterator
     {
-	    obj_next = obj->next_content;
-	    if (wnum_match_obj(wnum, obj) || is_name(arg2, obj->name))
-	    {
-		    act("Extracted $p from $N.", ch, victim, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
-		    extract_obj(obj);
-		    found = true;
-		    if (!fAll) break;
-	    }
+        iterator_start(&it, victim->lcarrying);
+        while ((obj = (OBJ_DATA *)iterator_nextdata(&it)))
+        {
+            if (wnum_match_obj(wnum, obj) || is_name(arg2, obj->name))
+            {
+                act("Extracted $p from $N's inventory.", ch, victim, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+                iterator_remcurrent(&it); // Remove from iterator before extracting
+                extract_obj(obj);
+                found = true;
+                if (!fAll) break; // Break from lcarrying loop if not 'all'
+            }
+        }
+        iterator_stop(&it);
     }
 
+    // Process lworn (equipped items)
+    // Continue if 'fAll' is true, or if 'fAll' is false but nothing has been found yet.
+    if (!(!fAll && found)) // This is equivalent to: if (fAll || !found)
+    {
+        if (victim->lworn) // Check if the list exists
+        {
+            iterator_start(&it, victim->lworn);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it)))
+            {
+                if (wnum_match_obj(wnum, obj) || is_name(arg2, obj->name))
+                {
+                    act("Extracted $p from $N (worn).", ch, victim, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+                    iterator_remcurrent(&it);
+                    extract_obj(obj);
+                    found = true;
+                    if (!fAll) break; // Break from lworn loop
+                }
+            }
+            iterator_stop(&it);
+        }
+    }
+
+    // Process llocker
+    if (!(!fAll && found))
+    {
+        if (victim->llocker) // Check if the list exists
+        {
+            iterator_start(&it, victim->llocker);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it)))
+            {
+                if (wnum_match_obj(wnum, obj) || is_name(arg2, obj->name))
+                {
+                    act("Extracted $p from $N's locker.", ch, victim, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+                    iterator_remcurrent(&it);
+                    extract_obj(obj);
+                    found = true;
+                    if (!fAll) break; // Break from llocker loop
+                }
+            }
+            iterator_stop(&it);
+        }
+    }
+
+    // Process lquestitems
+    if (!(!fAll && found))
+    {
+        if (victim->lquestitems) // Check if the list exists
+        {
+            iterator_start(&it, victim->lquestitems);
+            while ((obj = (OBJ_DATA *)iterator_nextdata(&it)))
+            {
+                if (wnum_match_obj(wnum, obj) || is_name(arg2, obj->name))
+                {
+                    act("Extracted $p from $N's quest items.", ch, victim, NULL, obj, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+                    iterator_remcurrent(&it);
+                    extract_obj(obj);
+                    found = true;
+                    if (!fAll) break; // Break from lquestitems loop
+                }
+            }
+            iterator_stop(&it);
+        }
+    }
+
+	
     if (found)
 	    send_to_char("Done.\n\r", ch);
     else
