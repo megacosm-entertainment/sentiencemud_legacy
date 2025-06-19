@@ -615,8 +615,11 @@ void move_char(CHAR_DATA *ch, int door, bool follow)
 	if (!IS_AFFECTED(ch, AFF_SNEAK) && ch->invis_level < LEVEL_HERO) {
 		if( IS_VALID(in_dungeon) && !IS_VALID(to_dungeon) )
 		{
-			OBJ_DATA *portal = get_room_dungeon_portal(to_room, in_dungeon->index->vnum);
+			WNUM wnum;
+			wnum.pArea = in_dungeon->index->area;
+			wnum.vnum = in_dungeon->index->vnum;
 
+			OBJ_DATA *portal = get_room_dungeon_portal(to_room, wnum);
 			if( IS_VALID(portal) )
 			{
 				if( !IS_NULLSTR(in_dungeon->index->zone_out_portal) )
@@ -1680,7 +1683,7 @@ return NULL;
 }
 
 
-void use_key(CHAR_DATA *ch, OBJ_DATA *key)
+void use_key(CHAR_DATA *ch, OBJ_DATA *key, LOCK_STATE *lock)
 {
 	CHURCH_DATA *church;
 	char buf[MSL];
@@ -1697,42 +1700,49 @@ void use_key(CHAR_DATA *ch, OBJ_DATA *key)
 		return;
 	}
 
-	/* can only use a church-temple key if you're in that church */
-ITERATOR it;
-iterator_start(&it, list_churches);
-while ((church = (CHURCH_DATA *)iterator_nextdata(&it)))
-{
-    if (church->key == key->pIndexData->vnum && ch->church != church)
-    {
-        sprintf(buf, "Rent by the spiritual powers of %s, $p dissipates into nothingness.\n\r", church->name);
-        act(buf, ch, NULL, NULL, key, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
-        act(buf, ch, NULL, NULL, key, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
-        extract_obj(key);
-        iterator_stop(&it);
-        return;
-    }
-}
-iterator_stop(&it);
-
-	switch (key->fragility)
+	if (lock == NULL)
 	{
-	case OBJ_FRAGILE_SOLID: break;
-	case OBJ_FRAGILE_STRONG:
-		if (number_percent() < 25)
-			key->condition--;
-		break;
-	case OBJ_FRAGILE_NORMAL:
-		if (number_percent() < 50)
-			key->condition--;
-		break;
-	case OBJ_FRAGILE_WEAK:
-		key->condition--;
-		break;
-	default:
-		break;
+		bug("use_key: lock was null", 0);
+		return;
 	}
 
-	if (key->condition <= 0)
+	/* can only use a church-temple key if you're in that church */
+	ITERATOR it;
+	iterator_start(&it, list_churches);
+	while ((church = (CHURCH_DATA *)iterator_nextdata(&it)))
+	{
+    	if (church->key == key->pIndexData->vnum && ch->church != church)
+    	{
+        	sprintf(buf, "Rent by the spiritual powers of %s, $p dissipates into nothingness.\n\r", church->name);
+        	act(buf, ch, NULL, NULL, key, NULL, NULL, NULL, TO_CHAR, NULL, NULL);
+        	act(buf, ch, NULL, NULL, key, NULL, NULL, NULL, TO_ROOM, NULL, NULL);
+        	extract_obj(key);
+        	iterator_stop(&it);
+        	return;
+    	}
+	}
+	iterator_stop(&it);
+
+	if (key->fragility != OBJ_FRAGILE_SOLID)
+	{
+		switch (key->fragility)
+		{
+			case OBJ_FRAGILE_STRONG:
+				if (number_percent() < 25)
+				key->condition--;
+				break;
+		case OBJ_FRAGILE_NORMAL:
+			if (number_percent() < 50)
+				key->condition--;
+			break;
+		case OBJ_FRAGILE_WEAK:
+			key->condition--;
+			break;
+		default:
+			break;
+		}
+	}
+	if (IS_SET(lock->flags, LOCK_SNAPKEY || key->condition <= 0))
 	{
 		act("$p snaps and breaks.", ch, NULL, NULL, key, NULL, NULL, NULL, TO_ALL, NULL, NULL);
 		extract_obj(key);
@@ -1807,7 +1817,7 @@ void do_lock(CHAR_DATA *ch, char *argument)
 			act("You lock $p with $P.",ch, NULL, NULL,obj, key, NULL,NULL,TO_CHAR, NULL, NULL);
 			act("$n locks $p with $P.",ch, NULL, NULL,obj, key, NULL,NULL,TO_ROOM, NULL, NULL);
 
-			use_key(ch, key);
+			use_key(ch, key, obj->lock);
 			return;
 		}
 
@@ -1854,7 +1864,7 @@ void do_lock(CHAR_DATA *ch, char *argument)
 		act("You lock $p with $P.",ch, NULL, NULL,obj, key, NULL,NULL,TO_CHAR, NULL, NULL);
 		act("$n locks $p with $P.",ch, NULL, NULL,obj, key, NULL, NULL, TO_ROOM, NULL, NULL);
 
-		use_key(ch, key);
+		use_key(ch, key, obj->lock);
 		return;
 	}
 
@@ -1909,7 +1919,7 @@ void do_lock(CHAR_DATA *ch, char *argument)
 			pexit_rev->u1.to_room == ch->in_room)
 			SET_BIT(pexit_rev->door.lock.flags, LOCK_LOCKED);
 
-		use_key(ch, key);
+		use_key(ch, key, obj->lock);
 	}
 }
 
@@ -1979,7 +1989,7 @@ void do_unlock(CHAR_DATA *ch, char *argument)
 			REMOVE_BIT(obj->lock->flags,LOCK_LOCKED);
 			act("You unlock $p with $P.",ch, NULL, NULL,obj, key, NULL,NULL,TO_CHAR, NULL, NULL);
 			act("$n unlocks $p with $P.",ch, NULL, NULL,obj, key, NULL,NULL,TO_ROOM, NULL, NULL);
-			use_key(ch, key);
+			use_key(ch, key, obj->lock);
 			return;
 		}
 
