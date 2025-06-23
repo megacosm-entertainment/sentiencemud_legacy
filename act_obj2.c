@@ -50,7 +50,7 @@ void do_deposit(CHAR_DATA *ch, char *argument)
             for (gq_obj = global_quest.objects; gq_obj != NULL;
                     gq_obj = gq_obj->next)
             {
-                if (obj->pIndexData->vnum == gq_obj->vnum)
+                if (obj->pIndexData->area->uid == gq_obj->wnum_load.auid && obj->pIndexData->vnum == gq_obj->wnum_load.vnum)
                 {
                     found = true;
                     qp += gq_obj->qp_reward;

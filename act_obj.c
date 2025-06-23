@@ -1182,9 +1182,8 @@ void do_drop(CHAR_DATA *ch, char *argument)
     }
 
     /* Handle money dropping */
-    if ((!str_prefix("all.", arg)
-        && (!str_cmp(arg+4, "gold") || !str_cmp(arg+4, "silver") || !str_cmp(arg+4, "coins")))
-    ||  (is_number(arg) && (!str_cmp(arg2, "gold") || !str_cmp(arg2, "silver"))))
+    if ((!str_prefix("all.", arg) && (!str_cmp(arg+4, "gold") || !str_cmp(arg+4, "silver") || !str_cmp(arg+4, "coins"))) ||
+		(is_number(arg) && (!str_cmp(arg2, "gold") || !str_cmp(arg2, "silver"))))
     {
         if (!str_prefix("all.", arg))
         {
@@ -4413,7 +4412,7 @@ SHOP_STOCK_DATA *get_stockonly_keeper(CHAR_DATA *ch, CHAR_DATA *keeper, char *ar
 			// Out of stock.
 			if( stock->max_quantity > 0 && stock->quantity < 1) continue;
 
-			if( stock->vnum > 0 )
+			if( stock->wnum.pArea && stock->wnum.vnum > 0 )
 			{
 				if( stock->obj != NULL )
 				{
@@ -4479,7 +4478,7 @@ bool get_stock_keeper(CHAR_DATA *ch, CHAR_DATA *keeper, SHOP_REQUEST_DATA *reque
             // Out of stock.
             if(stock->max_quantity > 0 && stock->quantity < 1) continue;
 
-            if(stock->vnum > 0)
+            if(stock->wnum.pArea && stock->wnum.vnum > 0)
             {
                 if(stock->obj != NULL)
                 {
@@ -4677,16 +4676,16 @@ void do_buy(CHAR_DATA *ch, char *argument)
 	char buf[MAX_STRING_LENGTH];
 	long cost;
 	int roll;
-	CHAR_DATA *mob;
+//	CHAR_DATA *mob;
 //    CHAR_DATA *plane_tunneler;
-    CHAR_DATA *trader;
+//    CHAR_DATA *trader;
     char arg[MAX_INPUT_LENGTH];
     char arg2[MAX_INPUT_LENGTH];
 	char arg_keeper[MIL];
     bool haggled = false;
 
- //   plane_tunneler = NULL;
-    trader = NULL;
+//   plane_tunneler = NULL;
+//    trader = NULL;
 
     if (argument[0] == '\0')
     {
@@ -4702,7 +4701,7 @@ void do_buy(CHAR_DATA *ch, char *argument)
 			break;
 		}
     }
-*/
+
     for (mob = ch->in_room->people; mob != NULL; mob = mob->next_in_room)
     {
 		if (IS_SET(mob->act[1], ACT2_TRADER) && IS_NPC(mob))
@@ -4725,7 +4724,7 @@ void do_buy(CHAR_DATA *ch, char *argument)
 		OBJ_DATA *cart = NULL;
 		int counter = -1;
 		char *trade_item;
-		/*int counter;*/
+		int counter;
 
 		argument = one_argument( argument, arg );
 		argument = one_argument( argument, arg2 );
@@ -4772,7 +4771,7 @@ void do_buy(CHAR_DATA *ch, char *argument)
 
 		if ( counter == -1 )
 		{
-			/* Check if unit will fit in cart */
+			// Check if unit will fit in cart 
 			if ( obj_index->weight + get_obj_weight_container( cart ) > (cart->value[0]) ||
 				(get_obj_number_container(cart) >= cart->value[3]))
 			{
@@ -4792,7 +4791,7 @@ void do_buy(CHAR_DATA *ch, char *argument)
 
 			deduct_cost( ch, cost );
 
-			/* Create object and stick it in the cart */
+			// Create object and stick it in the cart 
 			pObj = create_object( get_obj_index( temp->obj_vnum ), 1, true );
 			if ( pObj == NULL )
 			{
@@ -4811,7 +4810,7 @@ void do_buy(CHAR_DATA *ch, char *argument)
 		{
 			int count = 0;
 
-			/* Check if unit will fit in cart */
+			// Check if unit will fit in cart
 			if ( counter*(obj_index->weight + get_obj_weight_container( cart )) > (cart->value[0]) ||
 				(get_obj_number_container(cart) + counter >= cart->value[3]))
 			{
@@ -4832,7 +4831,7 @@ void do_buy(CHAR_DATA *ch, char *argument)
 			deduct_cost( ch, cost );
 			for (count = 0; count < counter; count++)
 			{
-				/* Create object and stick it in the cart */
+				// Create object and stick it in the cart
 				pObj = create_object( get_obj_index( temp->obj_vnum ), 1, true );
 				if ( pObj == NULL )
 				{
@@ -5209,7 +5208,8 @@ void do_buy(CHAR_DATA *ch, char *argument)
 			// Attempting to buy from stock
 			keeper->tempstore[0] = number;
 			keeper->tempstore[1] = stock->type;
-			keeper->tempstore[2] = stock->vnum;
+			keeper->tempstore[2] = stock->wnum.pArea;
+			keeper->tempstore[3] = stock->wnum.vnum;
 			int ret = p_percent_trigger(keeper, NULL, NULL, NULL, ch, NULL, NULL, NULL, NULL, TRIG_PREBUY, stock->custom_keyword);
 			if( ret > 0 ) return;	// Messages should be done in the script
 			if( ret < 0 )
@@ -5220,8 +5220,6 @@ void do_buy(CHAR_DATA *ch, char *argument)
 				ch->reply = keeper;
 				return;
 			}
-
-
 
 			if( (stock->mob != NULL || stock->ship != NULL || stock->singular) && number > 1 )
 			{
@@ -5464,8 +5462,9 @@ void do_buy(CHAR_DATA *ch, char *argument)
 				// - entire currency transaction needs to take place
 				keeper->tempstore[0] = number;
 				keeper->tempstore[1] = stock->type;
-				keeper->tempstore[2] = stock->vnum;
-				keeper->tempstore[3] = UMAX(chance, 0);
+				keeper->tempstore[2] = stock->wnum.pArea;
+				keeper->tempstore[3] = stock->wnum.vnum;
+				keeper->tempstore[4] = UMAX(chance, 0);
 				free_string(keeper->tempstring);
 				keeper->tempstring = &str_empty[0];
 				int ret = p_percent_trigger(keeper, NULL, NULL, NULL, ch, NULL, NULL, NULL, NULL, TRIG_CUSTOM_PRICE, stock->custom_keyword);
@@ -5482,7 +5481,7 @@ void do_buy(CHAR_DATA *ch, char *argument)
 
 				// Account for the fact that the value will not change if no script is called
 				//  - to activate, do altermob $(self) tempstore3 = -1
-				haggled = (keeper->tempstore[3] < 0);
+				haggled = (keeper->tempstore[4] < 0);
 
 				// Script should specify the price string.
 				if(!IS_NULLSTR(keeper->tempstring))
@@ -5673,7 +5672,7 @@ void do_buy(CHAR_DATA *ch, char *argument)
 			}
 			else if( stock->ship != NULL )
 			{
-				SHIP_DATA *ship = purchase_ship(ch, stock->ship->vnum, keeper->shop);
+				SHIP_DATA *ship = purchase_ship(ch, stock->wnum, keeper->shop);
 
 				if( !IS_VALID(ship) )
 				{
@@ -5813,7 +5812,7 @@ void do_list(CHAR_DATA *ch, char *argument)
 
     argument = one_argument(argument, arg_keeper);
     one_argument(argument,arg);
-
+/*
     if (IS_SET(ch->in_room->room_flag[0], ROOM_SHIP_SHOP))
     {
         send_to_char("Min Crew   Max Crew  Max Cannons  Kg Capacity    Minimum Rank  Price   Name\n\r", ch); 
@@ -5826,7 +5825,7 @@ void do_list(CHAR_DATA *ch, char *argument)
         return;
     }
     else
-    {
+    {*/
         CHAR_DATA *keeper;
         OBJ_DATA *obj;
         int cost,count;
@@ -5847,7 +5846,7 @@ void do_list(CHAR_DATA *ch, char *argument)
             switch(stock->type)
             {
             case STOCK_OBJECT:
-                if( stock->vnum > 0 && stock->obj != NULL )
+                if( stock->wnum.pArea && stock->wnum.vnum > 0 && stock->obj != NULL )
                 {
                     if( arg[0] != '\0' && !is_name(arg, stock->obj->name) )
                         continue;
@@ -5893,7 +5892,7 @@ void do_list(CHAR_DATA *ch, char *argument)
             case STOCK_MOUNT:
             case STOCK_GUARD:
             case STOCK_CREW:
-                if( stock->vnum > 0 && stock->mob != NULL )
+                if( stock->wnum.pArea && stock->wnum.vnum > 0 && stock->mob != NULL )
                 {
                     if( arg[0] != '\0' && !is_name(arg, stock->mob->player_name) )
                         continue;
@@ -5935,7 +5934,7 @@ void do_list(CHAR_DATA *ch, char *argument)
                 break;
 
             case STOCK_SHIP:
-                if( stock->vnum > 0 && stock->ship != NULL )
+                if( stock->wnum.pArea && stock->wnum.vnum > 0 && stock->ship != NULL )
                 {
                     if( arg[0] != '\0' && !is_name(arg, stock->ship->name) )
                         continue;
@@ -6044,7 +6043,7 @@ void do_list(CHAR_DATA *ch, char *argument)
         if (!found)
             send_to_char("You can't buy anything here.\n\r", ch);
         return;
-    }
+    //}
 }
 
 void do_inspect(CHAR_DATA *ch, char *argument)
@@ -6177,8 +6176,8 @@ void do_sell(CHAR_DATA *ch, char *argument)
 	char arg[MAX_INPUT_LENGTH];
 	char arg_keeper[MIL];
 	CHAR_DATA *keeper = NULL;
-	CHAR_DATA *trader = NULL;
-	CHAR_DATA *mob = NULL;
+	//CHAR_DATA *trader = NULL;
+	//CHAR_DATA *mob = NULL;
 	OBJ_DATA *obj = NULL;
 	int cost,roll;
 
@@ -6191,6 +6190,13 @@ void do_sell(CHAR_DATA *ch, char *argument)
 		return;
 	}
 
+
+	if ((keeper = find_keeper(ch, arg_keeper)) == NULL)
+	{
+		send_to_char("You can't do that here.\n\r", ch);
+		return;
+	}
+	/*
 	for (mob = ch->in_room->people; mob != NULL; mob = mob->next_in_room)
 	{
 		if (IS_SET(mob->act[1], ACT2_TRADER) && IS_NPC(mob))
@@ -6268,7 +6274,7 @@ void do_sell(CHAR_DATA *ch, char *argument)
 
 	if (trader == NULL && (keeper = find_keeper(ch, arg_keeper)) == NULL)
 		return;
-
+*/
 	if ((obj = get_obj_carry(ch, arg, ch)) == NULL)
 	{
 		act("{R$n tells you 'You don't have that item'.{x", keeper, ch, NULL, NULL, NULL, NULL, NULL, TO_VICT, NULL, NULL);
@@ -6276,7 +6282,7 @@ void do_sell(CHAR_DATA *ch, char *argument)
 		return;
 	}
 
-	if(p_percent_trigger(trader, NULL, NULL, NULL, ch, NULL, NULL, obj, NULL, TRIG_PRESELL, NULL))
+	if(p_percent_trigger(keeper, NULL, NULL, NULL, ch, NULL, NULL, obj, NULL, TRIG_PRESELL, NULL))
 		return;
 
 	if (!can_drop_obj(ch, obj, true) || IS_SET(obj->extra[1], ITEM_KEPT))
