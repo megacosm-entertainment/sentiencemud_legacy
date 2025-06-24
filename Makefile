@@ -138,6 +138,7 @@ C_FILES = \
     treasuremap.c \
     update.c \
     weather.c \
+    websocket.c \
     wilds.c
 
 O_FILES = $(patsubst %.c,$(OBJDIR)/%.o,$(C_FILES))

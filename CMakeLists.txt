@@ -160,6 +160,7 @@ set(SOURCE_FILES
     treasuremap.c
     update.c
     weather.c
+    websocket.c
     wilds.c
 )
 

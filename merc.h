@@ -1839,6 +1839,11 @@ struct	descriptor_data
     bool    tls_handshake_in_progress;
     SSL *ssl;
         time_t last_activity;
+    bool is_websocket;
+    int websocket_state;
+    char *websocket_buffer;
+    int websocket_buffer_len;
+    int websocket_buffer_size;
     bool mfa_verified;
     bool creating_staff_character;
     bool reconnecting;
@@ -1847,6 +1852,11 @@ struct	descriptor_data
     CHAR_DATA *reconnect_ch; /* Character being reconnected to */
 
 };
+
+#define WS_NOT_WEBSOCKET    0
+#define WS_HANDSHAKE        1
+#define WS_CONNECTED        2
+#define WS_CLOSING          3
 
 bool generate_crypt_salt(char *salt_buffer, size_t salt_buffer_size);
 bool set_encrypted_password(char **target_password_field, int *target_version_field, const char *plaintext_password);
@@ -9421,6 +9431,23 @@ void free_script(SCRIPT_DATA *s);
 void variable_clearfield(int type, void *ptr);
 void add_immortal(IMMORTAL_DATA *immortal);
 
+/* websocket.c */
+void init_websocket_descriptor(DESCRIPTOR_DATA *d);
+void cleanup_websocket_descriptor(DESCRIPTOR_DATA *d);
+bool websocket_handshake(DESCRIPTOR_DATA *d, char *request);
+bool websocket_send_frame(DESCRIPTOR_DATA *d, const char *data, int len, int opcode);
+int websocket_parse_frame(DESCRIPTOR_DATA *d, unsigned char *buffer, int buffer_len, char *output);
+
+
+#define WS_MAGIC_STRING "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+
+// WebSocket frame opcodes
+#define WS_OPCODE_CONTINUATION 0x0
+#define WS_OPCODE_TEXT         0x1
+#define WS_OPCODE_BINARY       0x2
+#define WS_OPCODE_CLOSE        0x8
+#define WS_OPCODE_PING         0x9
+#define WS_OPCODE_PONG         0xA
 
 
 #undef CD

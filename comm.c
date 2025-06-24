@@ -119,6 +119,7 @@ extern void init_string_space();
 bool			is_test_port;
 int 		    telnet_port;
 int				tls_port;
+int             websocket_port;
 GLOBAL_DATA         gconfig;		/* Vizz - UID Tracking, and any other persistent global config info */
 GAME_SETTINGS_DATA  game_settings;
 LLIST *conn_players;
@@ -144,10 +145,11 @@ LLIST *ssl_ctx_cleanup_queue = NULL;
 /*
  * OS-dependent local functions.
  */
-void	game_loop		args((int control_telnet, int control_tls));
+void	game_loop		args((int control_telnet, int control_tls, int control_websocket));
 int	init_socket		args((int port));
 int init_tls_socket	args((int port));
-void	init_descriptor		args((int control, bool is_tls));
+int     init_websocket_socket args((int port));
+void	init_descriptor		args((int control, bool is_tls, bool is_websocket));
 bool	read_from_descriptor	args((DESCRIPTOR_DATA *d));
 bool	write_to_descriptor	args((DESCRIPTOR_DATA *d, char *txt, int length));
 bool	write_to_descriptor_2	args((DESCRIPTOR_DATA *d, char *txt, int length));
@@ -326,6 +328,7 @@ int main(int argc, char **argv)
     struct timeval now_time;
     int control_telnet = 0;
 	int control_tls = 0;
+    int control_websocket = 0;
     ITERATOR iter;
     void *data;
 	static GAME_SETTINGS_DATA game_settings_zero;
@@ -467,6 +470,9 @@ int main(int argc, char **argv)
 		telnet_port = game_settings.telnet_port;
 	if (game_settings.tls_port)
 		tls_port = game_settings.tls_port;
+    if (game_settings.websocket_tls_port)
+        websocket_port = game_settings.websocket_tls_port;
+
 	if (game_settings.testport || game_settings.dev_server)
     	is_test_port = true;
 	
@@ -522,30 +528,64 @@ int main(int argc, char **argv)
     /*
      * Run the game.
      */
-	if ((!game_settings.enable_telnet && game_settings.telnet_port) && (!game_settings.enable_tls && game_settings.tls_port && !IS_NULLSTR(game_settings.ssl_cert_path) && !IS_NULLSTR(game_settings.ssl_key_path)))
-	{
-		fprintf(stderr, "No available connection options. Please set enable_telnet and telnet_port, and/or enable_tls and tls_port, along with ssl_cert_path and ssl_key_path in the game_settings table.\n");
-		exit(1);
-	}
+if (!game_settings.enable_telnet && 
+    !game_settings.enable_tls && 
+    !game_settings.enable_websocket_tls)
+{
+    fprintf(stderr, "No connection methods enabled. Please enable at least one of:\n");
+    fprintf(stderr, "  - enable_telnet (with telnet_port)\n");
+    fprintf(stderr, "  - enable_tls (with tls_port, ssl_cert_path, ssl_key_path)\n");
+    fprintf(stderr, "  - enable_websocket_tls (with websocket_tls_port)\n");
+    exit(1);
+}
 
-	if (game_settings.enable_telnet)
-	{
-    	control_telnet = init_socket(telnet_port);
-		sprintf(log_buf, "Telnet socket bound to port %d.", telnet_port);
-		log_string(log_buf);
-	}
-	if (game_settings.enable_tls && game_settings.tls_port)
-	{
-		control_tls = init_tls_socket(tls_port);
-		sprintf(log_buf, "TLS socket bound to port %d.", tls_port);
-		log_string(log_buf);
-	}
+// Check that enabled methods have required settings
+if (game_settings.enable_telnet && !game_settings.telnet_port)
+{
+    fprintf(stderr, "Telnet enabled but no telnet_port specified.\n");
+    exit(1);
+}
+
+if (game_settings.enable_tls && 
+    (!game_settings.tls_port || IS_NULLSTR(game_settings.ssl_cert_path) || IS_NULLSTR(game_settings.ssl_key_path)))
+{
+    fprintf(stderr, "TLS enabled but missing tls_port, ssl_cert_path, or ssl_key_path.\n");
+    exit(1);
+}
+
+if (game_settings.enable_websocket_tls && !game_settings.websocket_tls_port)
+{
+    fprintf(stderr, "WebSocket TLS enabled but no websocket_tls_port specified.\n");
+    exit(1);
+}
+
+// Initialize enabled sockets
+if (game_settings.enable_telnet)
+{
+    control_telnet = init_socket(telnet_port);
+    sprintf(log_buf, "Telnet socket bound to port %d.", telnet_port);
+    log_string(log_buf);
+}
+
+if (game_settings.enable_tls && game_settings.tls_port)
+{
+    control_tls = init_tls_socket(tls_port);
+    sprintf(log_buf, "TLS socket bound to port %d.", tls_port);
+    log_string(log_buf);
+}
+
+if (game_settings.enable_websocket_tls && game_settings.websocket_tls_port)
+{
+    control_websocket = init_websocket_socket(game_settings.websocket_tls_port);
+    sprintf(log_buf, "WebSocket TLS socket bound to port %d.", game_settings.websocket_tls_port);
+    log_string(log_buf);
+}
 
     boot_db();
 
     sprintf(log_buf, "Sentience is up on %d.", telnet_port);
     log_string(log_buf);
-    game_loop(control_telnet, control_tls);
+    game_loop(control_telnet, control_tls, control_websocket);
 	list_destroy(conn_players);
 	list_destroy(conn_immortals);
 	list_destroy(conn_online);
@@ -575,6 +615,8 @@ int main(int argc, char **argv)
     	close (control_telnet);
 	if (game_settings.enable_tls)
 		close(control_tls);
+    if (game_settings.enable_websocket_tls)
+        close(control_websocket);
 
 
 	save_commands();
@@ -746,7 +788,49 @@ int init_tls_socket(int port)
     return fd;
 }
 
-void game_loop(int control_telnet, int control_tls)
+int init_websocket_socket(int port)
+{
+    static struct sockaddr_in sa_zero;
+    struct sockaddr_in sa;
+    int x = 1;
+    int fd;
+
+    if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    {
+        perror("Init_websocket_socket: socket");
+        exit(1);
+    }
+
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
+        (char *) &x, sizeof(x)) < 0)
+    {
+        perror("Init_websocket_socket: SO_REUSEADDR");
+        close(fd);
+        exit(1);
+    }
+
+    sa = sa_zero;
+    sa.sin_family = AF_INET;
+    sa.sin_port = htons(port);
+
+    if (bind(fd, (struct sockaddr *) &sa, sizeof(sa)) < 0)
+    {
+        perror("Init websocket socket: bind");
+        close(fd);
+        exit(1);
+    }
+
+    if (listen(fd, 3) < 0)
+    {
+        perror("Init websocket socket: listen");
+        close(fd);
+        exit(1);
+    }
+
+    return fd;
+}
+
+void game_loop(int control_telnet, int control_tls, int control_websocket)
 {
     static struct timeval null_time;
     struct timeval last_time;
@@ -788,6 +872,12 @@ void game_loop(int control_telnet, int control_tls)
         {
             FD_SET(control_tls, &in_set);
             maxdesc = UMAX(maxdesc, control_tls);
+        }
+
+        if (control_websocket != -1 && game_settings.enable_websocket_tls)
+        {
+            FD_SET(control_websocket, &in_set);
+            maxdesc = UMAX(maxdesc, control_websocket);
         }
 
         // Process descriptor lists
@@ -835,10 +925,14 @@ void game_loop(int control_telnet, int control_tls)
          * New connections?
          */
         if (control_telnet != -1 && FD_ISSET(control_telnet, &in_set))
-            init_descriptor(control_telnet, false);
+            init_descriptor(control_telnet, false, false);
         
         if (control_tls != -1 && FD_ISSET(control_tls, &in_set))
-            init_descriptor(control_tls, true);
+            init_descriptor(control_tls, true, false);
+
+        if (control_websocket != -1 && FD_ISSET(control_websocket, &in_set))
+            init_descriptor(control_websocket, true, true); // TLS + WebSocket
+
 
         /*
          * Process outstanding TLS handshakes first
@@ -924,34 +1018,34 @@ void game_loop(int control_telnet, int control_tls)
         /*
          * Process input.
          */
-        for (d = descriptor_list; d != NULL; d = d_next)
+for (d = descriptor_list; d != NULL; d = d_next)
+{
+    d_next = d->next;
+    d->fcommand = false;
+
+    // Only skip processing for non-WebSocket TLS connections in handshake
+    if (d->ssl && d->tls_handshake_in_progress && !d->is_websocket)
+        continue;
+
+    if (FD_ISSET(d->descriptor, &in_set))
+    {
+        if (d->character != NULL)
+            d->character->timer = 0;
+
+        if (!read_from_descriptor(d))
         {
-            d_next = d->next;
-            d->fcommand = false;
+            FD_CLR(d->descriptor, &out_set);
 
-            // Don't process input for connections in TLS handshake
-            if (d->ssl && d->tls_handshake_in_progress)
-                continue;
+            if (d->character != NULL && d->connected == CON_PLAYING)
+                save_char_obj(d->character);
 
-            if (FD_ISSET(d->descriptor, &in_set))
-            {
-                if (d->character != NULL)
-                    d->character->timer = 0;
+            d->outtop = 0;
+            close_socket(d);
+            continue;
+        }
 
-                if (!read_from_descriptor(d))
-                {
-                    FD_CLR(d->descriptor, &out_set);
-
-                    if (d->character != NULL && d->connected == CON_PLAYING)
-                        save_char_obj(d->character);
-
-                    d->outtop = 0;
-                    close_socket(d);
-                    continue;
-                }
-
-                d->muted = 0;
-            }
+        d->muted = 0;
+    }
 
             // Process command queues
             if (d->character != NULL && d->character->wait > 0)
@@ -1001,26 +1095,26 @@ void game_loop(int control_telnet, int control_tls)
         /*
          * Process output.
          */
-        for (d = descriptor_list; d != NULL; d = d_next)
-        {
-            d_next = d->next;
-            
-            // Skip output processing for connections in TLS handshake
-            if (d->ssl && d->tls_handshake_in_progress)
-                continue;
+for (d = descriptor_list; d != NULL; d = d_next)
+{
+    d_next = d->next;
+    
+    // Only skip output for non-WebSocket TLS connections in handshake
+    if (d->ssl && d->tls_handshake_in_progress && !d->is_websocket)
+        continue;
 
-            if ((d->fcommand || d->outtop > 0) && FD_ISSET(d->descriptor, &out_set))
-            {
-                if (!process_output(d, true))
-                {
-                    if (d->character != NULL && d->connected == CON_PLAYING) {
-                        save_char_obj(d->character);
-                    }
-                    d->outtop = 0;
-                    close_socket(d);
-                }
+    if ((d->fcommand || d->outtop > 0) && FD_ISSET(d->descriptor, &out_set))
+    {
+        if (!process_output(d, true))
+        {
+            if (d->character != NULL && d->connected == CON_PLAYING) {
+                save_char_obj(d->character);
             }
+            d->outtop = 0;
+            close_socket(d);
         }
+    }
+}
 
         /*
          * Check for idle/timeout connections
@@ -1119,7 +1213,7 @@ void game_loop(int control_telnet, int control_tls)
 }
 
 
-void init_descriptor(int control, bool is_tls)
+void init_descriptor(int control, bool is_tls, bool is_websocket)
 {
     char buf[MAX_STRING_LENGTH];
     DESCRIPTOR_DATA *dnew = NULL;
@@ -1151,56 +1245,63 @@ void init_descriptor(int control, bool is_tls)
     dnew->last_activity = current_time;
     dnew->healthcheck = false;
 
+    // Initialize WebSocket fields first
+    if (is_websocket) {
+        init_websocket_descriptor(dnew);
+    } else {
+        dnew->is_websocket = false;
+        dnew->websocket_state = WS_NOT_WEBSOCKET;
+        dnew->websocket_buffer = NULL;
+        dnew->websocket_buffer_len = 0;
+        dnew->websocket_buffer_size = 0;
+    }
+
+    // Handle TLS setup
     if (is_tls) {
         dnew->ssl = SSL_new(ctx);
-        dnew->tls_handshake_in_progress = true;
         if (dnew->ssl == NULL) {
             // Create a memory BIO to capture OpenSSL errors
             BIO *bio = BIO_new(BIO_s_mem());
             ERR_print_errors(bio);
             
-            // Extract the error messages to a buffer
             char ssl_err_buf[MAX_STRING_LENGTH];
             char *bio_data;
             long bio_len = BIO_get_mem_data(bio, &bio_data);
             
-            // Copy and null-terminate the error data
             if (bio_len >= MAX_STRING_LENGTH)
                 bio_len = MAX_STRING_LENGTH - 1;
             memcpy(ssl_err_buf, bio_data, bio_len);
             ssl_err_buf[bio_len] = '\0';
             BIO_free(bio);
             
-            // Update circuit breaker counters
             ssl_errors_since_reset++;
             last_ssl_error = current_time;
             
             sprintf(log_buf, "New_descriptor: SSL_new failed\nSSL errors: %s", ssl_err_buf);
             bug(log_buf, 0);
             
+            if (is_websocket) {
+                cleanup_websocket_descriptor(dnew);
+            }
             close(desc);
             free_descriptor(dnew);
             return;
         }
 
         if (SSL_set_fd(dnew->ssl, desc) == 0) {
-            // Create a memory BIO to capture OpenSSL errors
             BIO *bio = BIO_new(BIO_s_mem());
             ERR_print_errors(bio);
             
-            // Extract the error messages to a buffer
             char ssl_err_buf[MAX_STRING_LENGTH];
             char *bio_data;
             long bio_len = BIO_get_mem_data(bio, &bio_data);
             
-            // Copy and null-terminate the error data
             if (bio_len >= MAX_STRING_LENGTH)
                 bio_len = MAX_STRING_LENGTH - 1;
             memcpy(ssl_err_buf, bio_data, bio_len);
             ssl_err_buf[bio_len] = '\0';
             BIO_free(bio);
             
-            // Update circuit breaker counters
             ssl_errors_since_reset++;
             last_ssl_error = current_time;
             
@@ -1209,54 +1310,61 @@ void init_descriptor(int control, bool is_tls)
             
             SSL_free(dnew->ssl);
             dnew->ssl = NULL;
+            if (is_websocket) {
+                cleanup_websocket_descriptor(dnew);
+            }
             close(desc);
             free_descriptor(dnew);
             return;
         }
 
-        int ret = SSL_accept(dnew->ssl);
-        if (ret <= 0) {
-            int err = SSL_get_error(dnew->ssl, ret);
-            if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
-                dnew->tls_handshake_in_progress = true;
+
+            // For regular TLS connections, start the handshake immediately
+            int ret = SSL_accept(dnew->ssl);
+            if (ret <= 0) {
+                int err = SSL_get_error(dnew->ssl, ret);
+                if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
+                    dnew->tls_handshake_in_progress = true;
+                } else {
+                    BIO *bio = BIO_new(BIO_s_mem());
+                    ERR_print_errors(bio);
+                    
+                    char ssl_err_buf[MAX_STRING_LENGTH];
+                    char *bio_data;
+                    long bio_len = BIO_get_mem_data(bio, &bio_data);
+                    
+                    if (bio_len >= MAX_STRING_LENGTH)
+                        bio_len = MAX_STRING_LENGTH - 1;
+                    memcpy(ssl_err_buf, bio_data, bio_len);
+                    ssl_err_buf[bio_len] = '\0';
+                    BIO_free(bio);
+                    
+                    ssl_errors_since_reset++;
+                    last_ssl_error = current_time;
+                    
+                    sprintf(log_buf, "TLS handshake failed with error: %d\nSSL errors: %s\nSSL state: %s",
+                            err, ssl_err_buf, SSL_state_string_long(dnew->ssl));
+                    log_string(log_buf);
+                    
+                    SSL_free(dnew->ssl);
+                    dnew->ssl = NULL;
+                    if (is_websocket) {
+                        cleanup_websocket_descriptor(dnew);
+                    }
+                    close(desc);
+                    free_descriptor(dnew);
+                    return;
+                }
             } else {
-                // Create a memory BIO to capture OpenSSL errors
-                BIO *bio = BIO_new(BIO_s_mem());
-                ERR_print_errors(bio);
-                
-                // Extract the error messages to a buffer
-                char ssl_err_buf[MAX_STRING_LENGTH];
-                char *bio_data;
-                long bio_len = BIO_get_mem_data(bio, &bio_data);
-                
-                // Copy and null-terminate the error data
-                if (bio_len >= MAX_STRING_LENGTH)
-                    bio_len = MAX_STRING_LENGTH - 1;
-                memcpy(ssl_err_buf, bio_data, bio_len);
-                ssl_err_buf[bio_len] = '\0';
-                BIO_free(bio);
-                
-                // Update circuit breaker counters
-                ssl_errors_since_reset++;
-                last_ssl_error = current_time;
-                
-                sprintf(log_buf, "TLS handshake failed with error: %d\nSSL errors: %s\nSSL state: %s",
-                        err, ssl_err_buf, SSL_state_string_long(dnew->ssl));
-                log_string(log_buf);
-                
-                SSL_free(dnew->ssl);
-                dnew->ssl = NULL;
-                close(desc);
-                free_descriptor(dnew);
-                return;
+                dnew->tls_handshake_in_progress = false;
             }
-        } else {
-            dnew->tls_handshake_in_progress = false;
-        }
+        
     } else {
         dnew->ssl = NULL;
+        dnew->tls_handshake_in_progress = false;
     }
 
+    // Set up basic descriptor fields
     dnew->descriptor = desc;
     dnew->connected = CON_GET_ACCOUNT_NAME;
     dnew->showstr_head = NULL;
@@ -1268,6 +1376,7 @@ void init_descriptor(int control, bool is_tls)
     dnew->outbuf = alloc_mem(dnew->outsize);
     dnew->pProtocol = ProtocolCreate();
 
+    // Get client information
     size = sizeof(sock);
     if (getpeername(desc, (struct sockaddr *) &sock, &size) < 0)
     {
@@ -1291,41 +1400,56 @@ void init_descriptor(int control, bool is_tls)
         dnew->host = str_dup(from ? from->h_name : buf);
     }
 
+    // Check for bans
     if (check_ban(dnew->host, BAN_ALL))
     {
         char banmsg[MIL];
         sprintf(banmsg, "Your site has been banned from %s\n\r", game_settings.game_name);
         write_to_descriptor_2(dnew, banmsg, 0);
+        if (is_websocket) {
+            cleanup_websocket_descriptor(dnew);
+        }
         close(desc);
         free_descriptor(dnew);
         return;
     }
 
+    // Add to descriptor list
     dnew->next = descriptor_list;
     descriptor_list = dnew;
+    
+    // Initialize protocol
     ProtocolNegotiate(dnew);
 
-    write_to_buffer(dnew, compress_will, 0);
+    // Send initial data based on connection type
+    if (is_websocket) {
+        // WebSocket connections don't get any initial output - wait for HTTP handshake
+        // The websocket_handshake function will send the greeting after upgrade
+    } else {
+        // Regular telnet/TLS connections get normal greeting
+        write_to_buffer(dnew, compress_will, 0);
 
-    if (help_greeting[0] == '.')
-        write_to_buffer(dnew, help_greeting + 1, 0);
-    else
-        write_to_buffer(dnew, help_greeting, 0);
+        if (help_greeting[0] == '.') {
+            write_to_buffer(dnew, help_greeting + 1, 0);
+        } else {
+            write_to_buffer(dnew, help_greeting, 0);
+        }
 
-    if (!is_tls && game_settings.enable_tls && game_settings.enable_insecure_warning && game_settings.insecure_warning_msg != NULL)
-    {
-        sprintf(buf, "{R%s{x\n\r{XIf your client supports it, encrypted connection is available on port %d\n\r", game_settings.insecure_warning_msg, game_settings.tls_port);
-        write_to_buffer(dnew, buf, 0);
-    }
+        // Show TLS upgrade warning for insecure connections
+        if (!is_tls && game_settings.enable_tls && game_settings.enable_insecure_warning && 
+            game_settings.insecure_warning_msg != NULL) {
+            sprintf(buf, "{R%s{x\n\r{XIf your client supports it, encrypted connection is available on port %d\n\r", 
+                    game_settings.insecure_warning_msg, game_settings.tls_port);
+            write_to_buffer(dnew, buf, 0);
+        }
 
-    if (!IS_NULLSTR(game_settings.login_string))
-    {
-        write_to_buffer(dnew, game_settings.login_string, 0);
-        write_to_buffer(dnew, "\n\r", 0);
-    }
-    else
-    {
-        write_to_buffer(dnew, "By what name do you wish to be known? ", 0);
+        // Send login prompt
+        if (!IS_NULLSTR(game_settings.login_string)) {
+            write_to_buffer(dnew, game_settings.login_string, 0);
+            write_to_buffer(dnew, "\n\r", 0);
+        } else {
+            write_to_buffer(dnew, "By what name do you wish to be known? ", 0);
+        }
     }
 }
 
@@ -1368,28 +1492,34 @@ void close_socket(DESCRIPTOR_DATA *dclose)
     }
 
     if (d_next == dclose)
-		d_next = d_next->next;
+        d_next = d_next->next;
 
     if (dclose == descriptor_list)
     {
-		descriptor_list = descriptor_list->next;
+        descriptor_list = descriptor_list->next;
     }
     else
     {
-		DESCRIPTOR_DATA *d;
+        DESCRIPTOR_DATA *d;
 
-		for (d = descriptor_list; d && d->next != dclose; d = d->next)
-		    ;
-		if (d != NULL)
-		    d->next = dclose->next;
-		else
-	    	bug("Close_socket: dclose not found.", 0);
+        for (d = descriptor_list; d && d->next != dclose; d = d->next)
+            ;
+        if (d != NULL)
+            d->next = dclose->next;
+        else
+            bug("Close_socket: dclose not found.", 0);
     }
 
+    // Clean up compression
     if (dclose->out_compress) {
         deflateEnd(dclose->out_compress);
         free_mem(dclose->out_compress_buf, COMPRESS_BUF_SIZE);
         free_mem(dclose->out_compress, sizeof(z_stream));
+    }
+
+    // Clean up WebSocket resources
+    if (dclose->is_websocket) {
+        cleanup_websocket_descriptor(dclose);
     }
 
     ProtocolDestroy(dclose->pProtocol);
@@ -1424,9 +1554,13 @@ void close_socket(DESCRIPTOR_DATA *dclose)
                     // Second call only if first one succeeded
                     SSL_shutdown(dclose->ssl);
                 }
-                // Error handling remains the same
                 else if (ret < 0) {
-                    // Your existing error handling...
+                    err = SSL_get_error(dclose->ssl, ret);
+                    // Log significant errors but don't abort cleanup
+                    if (err != SSL_ERROR_WANT_READ && err != SSL_ERROR_WANT_WRITE) {
+                        sprintf(log_buf, "SSL_shutdown warning: error %d", err);
+                        log_string(log_buf);
+                    }
                 }
             }
         }
@@ -1439,16 +1573,20 @@ void close_socket(DESCRIPTOR_DATA *dclose)
         fcntl(dclose->descriptor, F_SETFL, flags);
     }
 
-	if (dclose->account) {
-    	dclose->account->refcount--;
-    	if (dclose->account->refcount <= 0) {
-        	list_remlink(loaded_accounts, dclose->account, false);
-        	free_account(dclose->account);
-    	}
-    	dclose->account = NULL;
-	}
+    // Clean up account reference
+    if (dclose->account) {
+        dclose->account->refcount--;
+        if (dclose->account->refcount <= 0) {
+            list_remlink(loaded_accounts, dclose->account, false);
+            free_account(dclose->account);
+        }
+        dclose->account = NULL;
+    }
     
-	// Gracefully shut down the socket before closing to avoid lingering FIN_WAIT2
+    // Remove from connection tracking
+    connection_remove(dclose);
+    
+    // Gracefully shut down the socket before closing to avoid lingering FIN_WAIT2
     shutdown(dclose->descriptor, SHUT_RDWR);
     close(dclose->descriptor);
 
@@ -1531,6 +1669,59 @@ bool read_from_descriptor(DESCRIPTOR_DATA *d)
         {
             read_buf[nRead] = '\0';
             iStart += nRead;
+
+// Handle WebSocket connections
+if (d->is_websocket && d->websocket_state == WS_HANDSHAKE)
+{
+    // Look for complete HTTP request (need \r\n\r\n)
+    if (strstr(read_buf, "\r\n\r\n"))
+    {
+        // Check if it's a valid WebSocket upgrade request
+        if (strstr(read_buf, "GET ") && 
+            strstr(read_buf, "Upgrade: websocket") && 
+            strstr(read_buf, "Sec-WebSocket-Key:"))
+        {
+            if (websocket_handshake(d, read_buf))
+            {
+                // Handshake successful, clear buffer and continue
+                d->inbuf[0] = '\0';
+                return true;
+            }
+            else
+            {
+                // Handshake failed
+                return false;
+            }
+        }
+        else
+        {
+            // Not a valid WebSocket request
+            return false;
+        }
+    }
+    // Continue reading if we don't have complete HTTP request yet
+    return true;  // FIXED: Don't break the connection, just wait for more data
+}
+            else if (d->is_websocket && d->websocket_state == WS_CONNECTED)
+            {
+                // Parse WebSocket frames
+                char ws_output[MAX_PROTOCOL_BUFFER];
+                int consumed = websocket_parse_frame(d, (unsigned char*)read_buf, iStart, ws_output);
+                
+                if (consumed > 0)
+                {
+                    // Successfully parsed a frame
+                    strcpy(d->inbuf, ws_output);
+                    return true;
+                }
+                else if (consumed < 0)
+                {
+                    // Connection should be closed
+                    return false;
+                }
+                // Continue reading if we need more data for complete frame
+                continue;
+            }
             
             // Check for health check (both TLS and non-TLS)
             if (strncmp(read_buf, "HEALTH_CHECK", 12) == 0)
@@ -1566,7 +1757,9 @@ bool read_from_descriptor(DESCRIPTOR_DATA *d)
     }
 
     read_buf[iStart] = '\0';
-    ProtocolInput(d, read_buf, iStart, d->inbuf);
+    if (!d->is_websocket) {
+        ProtocolInput(d, read_buf, iStart, d->inbuf);
+    }
     return true;
 }
 
@@ -2301,6 +2494,12 @@ bool write_to_descriptor_2(DESCRIPTOR_DATA *d, char *txt, int length)
     if (d->out_compress)
         return writeCompressed(d, txt, length);
 
+    // Handle WebSocket frame wrapping
+    if (d->is_websocket && d->websocket_state == WS_CONNECTED)
+    {
+        return websocket_send_frame(d, txt, length, WS_OPCODE_TEXT);
+    }
+
     for (iStart = 0; iStart < length; iStart += nWrite)
     {
         nBlock = UMIN(length - iStart, 4096);
@@ -2325,7 +2524,7 @@ bool write_to_descriptor_2(DESCRIPTOR_DATA *d, char *txt, int length)
                     log_string(log_buf);
                     return false;
                 } else {
-                    // Your existing error logging code
+                    // Create a memory BIO to capture OpenSSL errors
                     BIO *bio = BIO_new(BIO_s_mem());
                     ERR_print_errors(bio);
                     
@@ -2350,10 +2549,9 @@ bool write_to_descriptor_2(DESCRIPTOR_DATA *d, char *txt, int length)
                 }
             }
         } else {
-            // Your existing non-SSL write code
             nWrite = write(d->descriptor, txt + iStart, nBlock);
             if (nWrite < 0) {
-                if (errno == EPIPE) {
+                if (errno == EPIPE || errno == ECONNRESET) {
                     return false; 
                 }
                 perror("Write_to_descriptor_2");
